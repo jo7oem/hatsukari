@@ -19,3 +19,4 @@
 
 # Go workspace file
 go.work
+/dev_tools/bin/

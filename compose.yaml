@@ -1,0 +1,10 @@
+---
+services:
+  app:
+    image: "golang:1.21"
+    command: "./dev_tools/bin/air -c .air.toml"
+    working_dir: /go/src/github.com/jo7oem/hashukari
+    volumes:
+      - ./:/go/src/github.com/jo7oem/hashukari
+    ports:
+        - "2345:2345"
