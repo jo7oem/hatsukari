@@ -3,9 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
 	"log"
 	"time"
+
+	_ "github.com/lib/pq" //nolint:depguard
 )
 
 func main() {
@@ -14,9 +15,10 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	fmt.Print("Wake up!")
+	fmt.Print("Wake up!") //nolint:forbidigo
+
 	for {
-		fmt.Println("work!")
+		fmt.Println("work!") //nolint:forbidigo
 		log.Println("error work!")
 		time.Sleep(1 * time.Second)
 	}
