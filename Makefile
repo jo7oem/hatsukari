@@ -8,11 +8,11 @@ build:
 
 .PHONY: fmt
 fmt: $(DEV_BIN)/golangci-lint
-	$(DEV_BIN)/golangci-lint run --fix
+	$(DEV_BIN)/golangci-lint run --fix --config=.golangci.yml
 
 .PHONY: lint
 lint: $(DEV_BIN)/golangci-lint
-	$(DEV_BIN)/golangci-lint run
+	$(DEV_BIN)/golangci-lint run --config=.golangci.yml
 
 .PHONY: setup
 setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint $(DEV_BIN)/sqlc $(DEV_BIN)/migrate
