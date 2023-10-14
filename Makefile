@@ -1,5 +1,6 @@
 DEV_BIN:=dev_tools/bin
 MAKEFILE_DIR := $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))&&pwd )
+ABS_DEV_BIN := $(MAKEFILE_DIR)/$(DEV_BIN)
 
 .PHONY: build
 build:
@@ -14,7 +15,7 @@ lint: $(DEV_BIN)/golangci-lint
 	$(DEV_BIN)/golangci-lint run
 
 .PHONY: setup
-setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint
+setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint $(DEV_BIN)/sqlc $(DEV_BIN)/migrate
 
 $(DEV_BIN)/air:
 	mkdir -p $(@D)
@@ -26,14 +27,15 @@ $(DEV_BIN)/golangci-lint:
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
-	$(eval TMP_DIR=$(shell mktemp -d))
-	cd $(TMP_DIR) &&\
-		git clone https://github.com/go-delve/delve.git -b v1.21.1 --depth 1 &&\
-		cd delve&&\
-		make build&&\
-		chmod 755 dlv &&\
-		mv dlv $(MAKEFILE_DIR)/$(@D)/dlv &&\
-		rm -rf $(TMP_DIR)
+	GOBIN=$(ABS_DEV_BIN) go install github.com/go-delve/delve/cmd/dlv@latest
+
+$(DEV_BIN)/sqlc:
+	mkdir -p $(@D)
+	GOBIN=$(ABS_DEV_BIN) go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+$(DEV_BIN)/migrate:
+	mkdir -p $(@D)
+	GOBIN=$(ABS_DEV_BIN) go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
 
 .PHONY: clean
