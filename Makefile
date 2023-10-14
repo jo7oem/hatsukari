@@ -1,9 +1,9 @@
 DEV_BIN:=dev_tools/bin
 MAKEFILE_DIR := $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))&&pwd )
 
-.PHONY: nop
-nop:
-	# nop
+.PHONY: build
+build:
+	go build -o hatsukari ./...
 
 .PHONY: setup
 setup: $(DEV_BIN)/air $(DEV_BIN)/golangci-lint $(DEV_BIN)/dlv
