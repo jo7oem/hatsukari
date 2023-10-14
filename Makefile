@@ -5,8 +5,16 @@ MAKEFILE_DIR := $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))&&pwd )
 build:
 	go build -o hatsukari ./...
 
+.PHONY: fmt
+fmt: $(DEV_BIN)/golangci-lint
+	$(DEV_BIN)/golangci-lint run --fix
+
+.PHONY: lint
+fmt: $(DEV_BIN)/golangci-lint
+	$(DEV_BIN)/golangci-lint run
+
 .PHONY: setup
-setup: $(DEV_BIN)/air $(DEV_BIN)/golangci-lint $(DEV_BIN)/dlv
+setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint
 
 $(DEV_BIN)/air:
 	mkdir -p $(@D)
@@ -31,4 +39,5 @@ $(DEV_BIN)/dlv:
 .PHONY: clean
 clean:
 	rm -rf dev_tools/bin
+
 
