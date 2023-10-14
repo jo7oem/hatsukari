@@ -10,7 +10,7 @@ fmt: $(DEV_BIN)/golangci-lint
 	$(DEV_BIN)/golangci-lint run --fix
 
 .PHONY: lint
-fmt: $(DEV_BIN)/golangci-lint
+lint: $(DEV_BIN)/golangci-lint
 	$(DEV_BIN)/golangci-lint run
 
 .PHONY: setup
