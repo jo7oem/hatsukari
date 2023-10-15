@@ -42,7 +42,9 @@ jobs:
       postgres:
         image: postgres:16
         env:
+          POSTGRES_USER: hatsukari
           POSTGRES_PASSWORD: hatsukari
+          POSTGRES_DB: hatsukari
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
