@@ -1,5 +1,6 @@
 CREATE TABLE articles (
-                          src_path varchar(255) NOT NULL PRIMARY KEY ,
-                          need_compile boolean NOT NULL DEFAULT true,
-                          title varchar(255) NOT NULL
+                        id serial NOT NULL PRIMARY KEY,
+                        src_path varchar(255) UNIQUE NOT NULL,
+                        web_path varchar(255) UNIQUE ,
+                        need_compile boolean NOT NULL DEFAULT true
 );
