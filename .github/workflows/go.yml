@@ -38,11 +38,33 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: [lint]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: hatsukari
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v3
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{env.GO_VERSION}}
+      - name: Migrate DB schema up test
+        shell: bash
+        run: |
+          make migrate-up
+      - name: Migrate DB schema down test
+        shell: bash
+        run: |
+          make migrate-down
+      - name: Migrate DB schema up
+        shell: bash
+        run: |
+          make migrate-up
       - name: Test
         run: go test -v ./...

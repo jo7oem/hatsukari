@@ -37,6 +37,24 @@ $(DEV_BIN)/migrate:
 	mkdir -p $(@D)
 	GOBIN=$(ABS_DEV_BIN) go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
+.PHONY: migrate-up
+migrate-up: $(DEV_BIN)/migrate
+	$(DEV_BIN)/migrate -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" up
+
+.PHONY: migrate-down
+migrate-down: $(DEV_BIN)/migrate
+	$(DEV_BIN)/migrate -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" down -all
+
+.PHONY: sqlc-gen
+sqlc-gen: $(DEV_BIN)/sqlc
+	$(DEV_BIN)/sqlc generate
+
+.PHONY: sqlc-diff
+sqlc-diff: $(DEV_BIN)/sqlc
+	$(DEV_BIN)/sqlc diff
+
+.PHONY: ci
+ci: sqlc-diff lint
 
 .PHONY: clean
 clean:
