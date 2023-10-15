@@ -8,3 +8,11 @@ services:
       - ./:/go/src/github.com/jo7oem/hashukari
     ports:
         - "2345:2345"
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hatsukari
+      POSTGRES_PASSWORD: hatsukari
+      POSTGRES_DB: hatsukari
+    ports:
+        - "5432:5432"

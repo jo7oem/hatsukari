@@ -1,0 +1,9 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "db/schemas/articles/query.sql"
+    schema: "db/schemas/articles/articles.sql"
+    gen:
+      go:
+        package: "rdb"
+        out: "store/rdb"
