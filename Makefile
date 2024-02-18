@@ -7,7 +7,8 @@ build:
 	go build -o hatsukari ./...
 
 .PHONY: fmt
-fmt: $(DEV_BIN)/golangci-lint
+fmt: $(DEV_BIN)/golangci-lint $(DEV_BIN)/wsl
+	$(DEV_BIN)/wsl --fix ./... >/dev/null 2>&1 || true
 	$(DEV_BIN)/golangci-lint run --fix --config=.golangci.yml
 
 .PHONY: lint
@@ -20,6 +21,10 @@ setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint $(DEV_BIN)/sqlc $(
 $(DEV_BIN)/air:
 	mkdir -p $(@D)
 	curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s -- -b $(@D)
+
+$(DEV_BIN)/wsl:
+	mkdir -p $(@D)
+	GOBIN=$(ABS_DEV_BIN) go install github.com/bombsimon/wsl/v4/cmd...@master
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
@@ -39,11 +44,11 @@ $(DEV_BIN)/migrate:
 
 .PHONY: migrate-up
 migrate-up: $(DEV_BIN)/migrate
-	$(DEV_BIN)/migrate -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" up
+	$(DEV_BIN)/migrates -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" up
 
 .PHONY: migrate-down
 migrate-down: $(DEV_BIN)/migrate
-	$(DEV_BIN)/migrate -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" down -all
+	$(DEV_BIN)/migrates -path db/migration -database "postgresql://hatsukari:hatsukari@localhost:5432/hatsukari?sslmode=disable" down -all
 
 .PHONY: sqlc-gen
 sqlc-gen: $(DEV_BIN)/sqlc
