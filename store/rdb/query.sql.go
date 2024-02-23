@@ -16,8 +16,10 @@ WHERE src_path = $1 LIMIT 1
 
 func (q *Queries) GetArticle(ctx context.Context, srcPath string) (Article, error) {
 	row := q.db.QueryRowContext(ctx, getArticle, srcPath)
+
 	var i Article
 	err := row.Scan(&i.SrcPath, &i.NeedCompile, &i.Title)
+
 	return i, err
 }
 
@@ -31,20 +33,27 @@ func (q *Queries) ListArticles(ctx context.Context) ([]Article, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
+
 	var items []Article
+
 	for rows.Next() {
 		var i Article
 		if err := rows.Scan(&i.SrcPath, &i.NeedCompile, &i.Title); err != nil {
 			return nil, err
 		}
+
 		items = append(items, i)
 	}
+
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
 	return items, nil
 }
