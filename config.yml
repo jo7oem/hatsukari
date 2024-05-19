@@ -1,0 +1,8 @@
+database:
+    dbType: "sqlite3"
+    host: localhost
+    user: hatsukari
+    password: hatsukari
+    dbName: hatsukari
+content:
+    path: "./work/content"

@@ -1,19 +1,22 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"time"
+	"os/signal"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jo7oem/hatsukari/resources"
 	_ "github.com/lib/pq"           //nolint:depguard
 	_ "github.com/mattn/go-sqlite3" //nolint:depguard
 )
@@ -22,8 +25,6 @@ const (
 	DB_POSTGRES = "postgres"
 	DB_SQLITE   = "sqlite3"
 )
-
-var useDB = DB_SQLITE
 
 var (
 	ErrLocked    = fmt.Errorf("already locked")
@@ -37,9 +38,14 @@ var migrateFiles embed.FS
 func main() {
 	var db *sql.DB
 
+	conf, err := loadConfig("config.yml")
+	if err != nil {
+		panic(err)
+	}
+
 	var driver database.Driver
 
-	switch useDB {
+	switch conf.DB.DBType {
 	case DB_POSTGRES:
 		tdb, err := sql.Open("postgres", "user=hatsukari dbname=hatsukari password=hatsukari sslmode=disable")
 		if err != nil {
@@ -73,13 +79,59 @@ func main() {
 		panic(err)
 	}
 
+	if !conf.Content.IsPathExist() {
+		if conf.Content.CreatePath() != nil {
+			panic("failed to create path")
+		}
+
+		fmt.Println("path created")
+	}
+
 	fmt.Print("Wake up!") //nolint:forbidigo
 
-	for {
-		fmt.Println("work!") //nolint:forbidigo
-		log.Println("error work!")
-		time.Sleep(1 * time.Second)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", resources.BlogRouter)
+	mux.HandleFunc("/static/", resources.StaticRouter)
+	srv := http.Server{
+		Addr:                         "localhost:8080",
+		Handler:                      mux,
+		DisableGeneralOptionsHandler: false,
+		TLSConfig:                    nil,
+		ReadTimeout:                  0,
+		ReadHeaderTimeout:            0,
+		WriteTimeout:                 0,
+		IdleTimeout:                  0,
+		MaxHeaderBytes:               0,
+		TLSNextProto:                 nil,
+		ConnState:                    nil,
+		ErrorLog:                     nil,
+		BaseContext:                  nil,
+		ConnContext:                  nil,
 	}
+
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt)
+		<-sigint
+
+		// We received an interrupt signal, shut down.
+		if err := srv.Shutdown(context.Background()); err != nil {
+			// Error from closing listeners, or context timeout:
+			log.Printf("HTTP server Shutdown: %v", err)
+		}
+
+		close(idleConnsClosed)
+	}()
+
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		// Error starting or closing listener:
+		log.Fatalf("HTTP server ListenAndServe: %v", err)
+	}
+
+	<-idleConnsClosed
+
+	fmt.Println("shutdown")
 }
 
 func migrateDB(driver database.Driver) error {
