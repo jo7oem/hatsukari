@@ -80,7 +80,14 @@ func (c dbConfig) Args() string {
 }
 
 type contentConfig struct {
-	Path string `yaml:"path"`
+	Path   string `yaml:"path"`
+	Remote struct {
+		Address        string `yaml:"address"`
+		Branch         string `yaml:"branch"`
+		AuthType       string `yaml:"authType"`
+		AuthSSHKey     string `yaml:"authSSHKey"`
+		AuthSSHKeyPath string `yaml:"authSSHKeyPath"`
+	}
 }
 
 func defaultContentConfig() contentConfig {

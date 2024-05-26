@@ -6,3 +6,4 @@ database:
     dbName: hatsukari
 content:
     path: "./work/content"
+    remote: ""

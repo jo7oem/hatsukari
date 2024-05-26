@@ -6,11 +6,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -19,6 +15,10 @@ import (
 	"github.com/jo7oem/hatsukari/resources"
 	_ "github.com/lib/pq"           //nolint:depguard
 	_ "github.com/mattn/go-sqlite3" //nolint:depguard
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
 )
 
 const (
@@ -38,7 +38,7 @@ var migrateFiles embed.FS
 func main() {
 	var db *sql.DB
 
-	conf, err := loadConfig("config.yml")
+	conf, err := loadConfig("config_my.yml")
 	if err != nil {
 		panic(err)
 	}
@@ -165,4 +165,15 @@ func migrateDB(driver database.Driver) error {
 	} else {
 		return err
 	}
+}
+
+func initContent(cnf *contentConfig) {
+	_, err := gogit.PlainClone(cnf.Path, false, &gogit.CloneOptions{
+		URL: cnf.Remote.Address,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
 }
