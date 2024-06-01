@@ -4,21 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"embed"
-	"errors"
 	"fmt"
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jo7oem/hatsukari/resources"
-	_ "github.com/lib/pq"           //nolint:depguard
-	_ "github.com/mattn/go-sqlite3" //nolint:depguard
+	"github.com/jo7oem/hatsukari/store/config"
+	"github.com/jo7oem/hatsukari/store/rdb"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+
+	"github.com/golang-migrate/migrate/v4/database"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	"github.com/jo7oem/hatsukari/resources"
+	"github.com/jo7oem/hatsukari/store/contents"
+	_ "github.com/lib/pq"           //nolint:depguard
+	_ "github.com/mattn/go-sqlite3" //nolint:depguard
 )
 
 const (
@@ -38,7 +38,7 @@ var migrateFiles embed.FS
 func main() {
 	var db *sql.DB
 
-	conf, err := loadConfig("config_my.yml")
+	conf, err := config.LoadConfig("config_my.yml")
 	if err != nil {
 		panic(err)
 	}
@@ -75,16 +75,20 @@ func main() {
 		}
 	}
 
-	if err := migrateDB(driver); err != nil {
+	if err := rdb.MigrateDB(driver, migrateFiles); err != nil {
 		panic(err)
 	}
 
-	if !conf.Content.IsPathExist() {
-		if conf.Content.CreatePath() != nil {
+	if !conf.Contents.IsPathExist() {
+		if conf.Contents.CreatePath() != nil {
 			panic("failed to create path")
 		}
 
 		fmt.Println("path created")
+	}
+
+	if err := contents.Start(conf.Contents); err != nil {
+		panic(err)
 	}
 
 	fmt.Print("Wake up!") //nolint:forbidigo
@@ -132,48 +136,4 @@ func main() {
 	<-idleConnsClosed
 
 	fmt.Println("shutdown")
-}
-
-func migrateDB(driver database.Driver) error {
-	fSrc, err := iofs.New(migrateFiles, "db/migrations")
-	if err != nil {
-		return err
-	}
-
-	m, err := migrate.NewWithInstance("iofs", fSrc, "sqlite3", driver)
-	if err != nil {
-		return err
-	}
-
-	v, _, err := m.Version()
-	if errors.Is(err, migrate.ErrNilVersion) {
-		return m.Up()
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if _, err := fSrc.Next(v); errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
-		return nil
-	} else {
-		return err
-	}
-}
-
-func initContent(cnf *contentConfig) {
-	_, err := gogit.PlainClone(cnf.Path, false, &gogit.CloneOptions{
-		URL: cnf.Remote.Address,
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
 }

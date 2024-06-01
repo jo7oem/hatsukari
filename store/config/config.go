@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -10,12 +10,12 @@ import (
 )
 
 type config struct {
-	Server  serverConfig  `yaml:"server"`
-	DB      dbConfig      `yaml:"database"`
-	Content contentConfig `yaml:"content"`
+	Server   ServerConfig  `yaml:"server"`
+	DB       DBConfig      `yaml:"database"`
+	Contents ContentConfig `yaml:"contents"`
 }
 
-func loadConfig(path string) (*config, error) {
+func LoadConfig(path string) (*config, error) {
 	absConfPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -43,19 +43,19 @@ func loadConfig(path string) (*config, error) {
 
 func defaultConfig() config {
 	return config{
-		Server:  defaultServerConfig(),
-		DB:      defaultDBConfig(),
-		Content: defaultContentConfig(),
+		Server:   defaultServerConfig(),
+		DB:       defaultDBConfig(),
+		Contents: defaultContentConfig(),
 	}
 }
 
-type serverConfig struct{}
+type ServerConfig struct{}
 
-func defaultServerConfig() serverConfig {
-	return serverConfig{}
+func defaultServerConfig() ServerConfig {
+	return ServerConfig{}
 }
 
-type dbConfig struct {
+type DBConfig struct {
 	DBType   string `yaml:"dbType"`
 	Host     string `yaml:"host"`
 	User     string `yaml:"user"`
@@ -64,8 +64,8 @@ type dbConfig struct {
 	Memo     string `yaml:"memo"`
 }
 
-func defaultDBConfig() dbConfig {
-	return dbConfig{
+func defaultDBConfig() DBConfig {
+	return DBConfig{
 		DBType:   "sqlite3",
 		Host:     "",
 		User:     "",
@@ -75,11 +75,11 @@ func defaultDBConfig() dbConfig {
 	}
 }
 
-func (c dbConfig) Args() string {
+func (c DBConfig) Args() string {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", c.Host, c.User, c.Password, c.DBName)
 }
 
-type contentConfig struct {
+type ContentConfig struct {
 	Path   string `yaml:"path"`
 	Remote struct {
 		Address        string `yaml:"address"`
@@ -90,13 +90,13 @@ type contentConfig struct {
 	}
 }
 
-func defaultContentConfig() contentConfig {
-	return contentConfig{
+func defaultContentConfig() ContentConfig {
+	return ContentConfig{
 		Path: "work/content",
 	}
 }
 
-func (c contentConfig) IsPathExist() bool {
+func (c ContentConfig) IsPathExist() bool {
 	if _, err := os.Stat(c.Path); err != nil {
 		return false
 	}
@@ -104,6 +104,6 @@ func (c contentConfig) IsPathExist() bool {
 	return true
 }
 
-func (c contentConfig) CreatePath() error {
+func (c ContentConfig) CreatePath() error {
 	return os.MkdirAll(c.Path, 0o755)
 }

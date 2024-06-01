@@ -7,6 +7,12 @@ package rdb
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"io/fs"
+	"os"
 )
 
 type DBTX interface {
@@ -27,5 +33,38 @@ type Queries struct {
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
 		db: tx,
+	}
+}
+
+func MigrateDB(driver database.Driver, migFileFS fs.FS) error {
+	fSrc, err := iofs.New(migFileFS, "db/migrations")
+	if err != nil {
+		return err
+	}
+
+	m, err := migrate.NewWithInstance("iofs", fSrc, "sqlite3", driver)
+	if err != nil {
+		return err
+	}
+
+	v, _, err := m.Version()
+	if errors.Is(err, migrate.ErrNilVersion) {
+		return m.Up()
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := fSrc.Next(v); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
+		return nil
+	} else {
+		return err
 	}
 }

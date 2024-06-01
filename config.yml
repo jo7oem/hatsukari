@@ -4,6 +4,6 @@ database:
     user: hatsukari
     password: hatsukari
     dbName: hatsukari
-content:
+contents:
     path: "./work/content"
     remote: ""
