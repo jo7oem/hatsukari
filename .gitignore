@@ -22,3 +22,4 @@ go.work
 /.idea
 /dev_tools/bin/
 /tmp
+/hatsukari.db
