@@ -1,12 +1,16 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"github.com/go-git/go-billy/v5"
+	gogit "github.com/go-git/go-git/v5"
+	goGitSSH "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/jo7oem/hatsukari/store/contents"
+	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"path/filepath"
-
-	"gopkg.in/yaml.v3"
 )
 
 type config struct {
@@ -88,6 +92,7 @@ type ContentConfig struct {
 		AuthSSHKey     string `yaml:"authSSHKey"`
 		AuthSSHKeyPath string `yaml:"authSSHKeyPath"`
 	}
+	fs billy.Filesystem
 }
 
 func defaultContentConfig() ContentConfig {
@@ -96,7 +101,7 @@ func defaultContentConfig() ContentConfig {
 	}
 }
 
-func (c ContentConfig) IsPathExist() bool {
+func (c *ContentConfig) IsPathExist() bool {
 	if _, err := os.Stat(c.Path); err != nil {
 		return false
 	}
@@ -104,6 +109,66 @@ func (c ContentConfig) IsPathExist() bool {
 	return true
 }
 
-func (c ContentConfig) CreatePath() error {
+func (c *ContentConfig) CreatePath() error {
 	return os.MkdirAll(c.Path, 0o755)
+}
+
+func (c *ContentConfig) Load() error {
+	cloneOpt := &gogit.CloneOptions{
+		URL:      c.Remote.Address,
+		Progress: os.Stdout,
+	}
+
+	switch c.Remote.AuthType {
+	case "ssh":
+		pubKey, err := goGitSSH.NewPublicKeysFromFile("git", c.Remote.AuthSSHKeyPath, "")
+		if err != nil {
+			return err
+		}
+
+		cloneOpt.Auth = pubKey
+
+	default:
+		panic("unsupported auth type")
+	}
+
+	// すでにcloneされているか確認する
+	r, err := gogit.PlainOpen(c.Path)
+	if errors.Is(err, gogit.ErrRepositoryNotExists) {
+		r, err = gogit.PlainClone(c.Path, false, cloneOpt)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+
+	if err := w.Pull(&gogit.PullOptions{
+		RemoteName: "origin",
+	}); err != nil && !errors.Is(err, gogit.NoErrAlreadyUpToDate) {
+		return err
+	}
+
+	c.fs = w.Filesystem
+
+	file, err := w.Filesystem.Open("conf.yml")
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	err = contents.Load(file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

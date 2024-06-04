@@ -5,17 +5,17 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"github.com/jo7oem/hatsukari/store/config"
-	"github.com/jo7oem/hatsukari/store/rdb"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/jo7oem/hatsukari/store/config"
+	"github.com/jo7oem/hatsukari/store/rdb"
+
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/jo7oem/hatsukari/resources"
 	"github.com/jo7oem/hatsukari/store/contents"
 	_ "github.com/lib/pq"           //nolint:depguard
 	_ "github.com/mattn/go-sqlite3" //nolint:depguard
@@ -87,15 +87,15 @@ func main() {
 		fmt.Println("path created")
 	}
 
-	if err := contents.Start(conf.Contents); err != nil {
+	if err := conf.Contents.Load(); err != nil {
 		panic(err)
 	}
 
 	fmt.Print("Wake up!") //nolint:forbidigo
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", resources.BlogRouter)
-	mux.HandleFunc("/static/", resources.StaticRouter)
+	mux.HandleFunc("/", contents.BlogRouter)
+	mux.HandleFunc("/static/", contents.StaticRouter)
 	srv := http.Server{
 		Addr:                         "localhost:8080",
 		Handler:                      mux,
