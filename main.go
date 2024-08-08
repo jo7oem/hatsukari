@@ -5,18 +5,17 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"github.com/jo7oem/hatsukari/builder"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 
-	"github.com/jo7oem/hatsukari/store/config"
-	"github.com/jo7oem/hatsukari/store/rdb"
-
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/jo7oem/hatsukari/store/contents"
+	"github.com/jo7oem/hatsukari/store/config"
+	"github.com/jo7oem/hatsukari/store/rdb"
 	_ "github.com/lib/pq"           //nolint:depguard
 	_ "github.com/mattn/go-sqlite3" //nolint:depguard
 )
@@ -91,14 +90,14 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Print("Wake up!") //nolint:forbidigo
+	handler, err := builder.NewHandler(&conf.Contents)
+	if err != nil {
+		panic(err)
+	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", contents.BlogRouter)
-	mux.HandleFunc("/static/", contents.StaticRouter)
 	srv := http.Server{
 		Addr:                         "localhost:8080",
-		Handler:                      mux,
+		Handler:                      handler,
 		DisableGeneralOptionsHandler: false,
 		TLSConfig:                    nil,
 		ReadTimeout:                  0,
@@ -112,6 +111,8 @@ func main() {
 		BaseContext:                  nil,
 		ConnContext:                  nil,
 	}
+
+	fmt.Print("Wake up!") //nolint:forbidigo
 
 	idleConnsClosed := make(chan struct{})
 	go func() {

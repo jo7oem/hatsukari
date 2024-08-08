@@ -3,14 +3,16 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/go-git/go-billy/v5"
+	"github.com/jo7oem/hatsukari/wrapper"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+
 	gogit "github.com/go-git/go-git/v5"
 	goGitSSH "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/jo7oem/hatsukari/store/contents"
 	"gopkg.in/yaml.v3"
-	"io"
-	"os"
-	"path/filepath"
 )
 
 type config struct {
@@ -85,6 +87,7 @@ func (c DBConfig) Args() string {
 
 type ContentConfig struct {
 	Path   string `yaml:"path"`
+	Type   string `yaml:"type"`
 	Remote struct {
 		Address        string `yaml:"address"`
 		Branch         string `yaml:"branch"`
@@ -92,7 +95,7 @@ type ContentConfig struct {
 		AuthSSHKey     string `yaml:"authSSHKey"`
 		AuthSSHKeyPath string `yaml:"authSSHKeyPath"`
 	}
-	fs billy.Filesystem
+	fs fs.FS
 }
 
 func defaultContentConfig() ContentConfig {
@@ -114,6 +117,12 @@ func (c *ContentConfig) CreatePath() error {
 }
 
 func (c *ContentConfig) Load() error {
+	if c.Type == "local" {
+		c.fs = os.DirFS(c.Path)
+
+		return nil
+	}
+
 	cloneOpt := &gogit.CloneOptions{
 		URL:      c.Remote.Address,
 		Progress: os.Stdout,
@@ -156,7 +165,8 @@ func (c *ContentConfig) Load() error {
 		return err
 	}
 
-	c.fs = w.Filesystem
+	gfs := wrapper.NewGitFS(w.Filesystem)
+	c.fs = gfs
 
 	file, err := w.Filesystem.Open("conf.yml")
 	if err != nil {
@@ -171,4 +181,8 @@ func (c *ContentConfig) Load() error {
 	}
 
 	return nil
+}
+
+func (c *ContentConfig) GetFS() fs.FS {
+	return c.fs
 }
