@@ -28,7 +28,7 @@ $(DEV_BIN)/wsl:
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(@D) v1.54.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(@D) v1.59.1
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
