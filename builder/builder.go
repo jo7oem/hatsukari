@@ -93,6 +93,8 @@ func (c content) getHandler(fSys fs.FS) (http.Handler, error) {
 	switch c.Type {
 	case TypeStaticDir:
 		return NewStaticDirHandler(fSys, c.URL, c.FilePath), nil
+	case TypeTemplate:
+
 	}
 
 	return nil, errors.New("invalid type")
@@ -110,33 +112,6 @@ type staticFileDirHandler struct {
 	fs       fs.FS
 	httpPath string
 	rootDir  string
-}
-
-func newReaderAt(buf []byte) *readerAt {
-	return &readerAt{
-		buf: buf,
-	}
-}
-
-type readerAt struct {
-	buf []byte
-}
-
-func (ra *readerAt) ReadAt(buf []byte, off int64) (int, error) {
-	if off >= int64(len(ra.buf)) {
-		buf = buf[:0]
-
-		return 0, io.EOF
-	}
-
-	n := copy(buf, ra.buf[off:])
-	ra.buf = ra.buf[int(off)+n:]
-
-	if n < len(buf) {
-		return n, io.EOF
-	}
-
-	return n, nil
 }
 
 func (h staticFileDirHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -191,19 +166,4 @@ func (h staticFileDirHandler) convertFilepath(Url string) string {
 	}
 
 	return filepath.Join(h.rootDir, filepath.Join(ul...))
-}
-
-func splitPath(path string) []string {
-	cPath := filepath.Clean(path)
-	res := make([]string, 0, strings.Count(cPath, "/"))
-
-	for _, s := range strings.Split(cPath, "/") {
-		if s == "" {
-			continue
-		}
-
-		res = append(res, s)
-	}
-
-	return res
 }
