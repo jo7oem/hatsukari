@@ -2,7 +2,6 @@ package builder
 
 import (
 	"errors"
-	"fmt"
 	"github.com/jo7oem/hatsukari/store/config"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -143,6 +142,8 @@ func (ra *readerAt) ReadAt(buf []byte, off int64) (int, error) {
 func (h staticFileDirHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	urlPath := r.RequestURI
 	fName := filepath.FromSlash(urlPath)
+	fp := filepath.Base(fName)
+	_ = fp
 	if filepath.Base(fName)[0] == '.' {
 		http.Error(w, "Not Found", http.StatusNotFound)
 
@@ -155,7 +156,7 @@ func (h staticFileDirHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tPath := filepath.Join(h.rootDir, fName)
+	tPath := h.convertFilepath(urlPath)
 	f, err := h.fs.Open(tPath)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
@@ -163,21 +164,46 @@ func (h staticFileDirHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	/*w.WriteHeader(http.StatusOK)
-	if _, err := io.Copy(w, f); err != nil {
-		fmt.Println(err)
-	}
-	*/
-
-	buf := make([]byte, 512)
-
-	if _, err := f.Read(buf); err != nil {
-		fmt.Println(err)
+	file, ok := f.(io.ReadSeeker)
+	if !ok {
+		http.Error(w, "Server Error", http.StatusInternalServerError)
 	}
 
-	ra := newReaderAt(buf)
-	sr := io.NewSectionReader(ra, 0, 0)
 	fi, _ := f.Stat()
 
-	http.ServeContent(w, r, fName, fi.ModTime(), sr)
+	http.ServeContent(w, r, fName, fi.ModTime(), file)
+}
+
+func (h staticFileDirHandler) convertFilepath(Url string) string {
+	base := strings.Split(h.httpPath, "/")
+	ul := strings.Split(Url, "/")
+
+	if len(ul) < len(base) {
+		return ""
+	}
+
+	for i := 0; i < len(base); i++ {
+		if base[i] != ul[0] {
+			break
+		}
+
+		ul = ul[1:]
+	}
+
+	return filepath.Join(h.rootDir, filepath.Join(ul...))
+}
+
+func splitPath(path string) []string {
+	cPath := filepath.Clean(path)
+	res := make([]string, 0, strings.Count(cPath, "/"))
+
+	for _, s := range strings.Split(cPath, "/") {
+		if s == "" {
+			continue
+		}
+
+		res = append(res, s)
+	}
+
+	return res
 }
