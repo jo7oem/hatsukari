@@ -8,7 +8,6 @@ build:
 
 .PHONY: fmt
 fmt: $(DEV_BIN)/golangci-lint $(DEV_BIN)/wsl
-	$(DEV_BIN)/wsl --fix ./... >/dev/null 2>&1 || true
 	$(DEV_BIN)/golangci-lint run --fix --config=.golangci.yml
 
 .PHONY: lint
@@ -28,7 +27,7 @@ $(DEV_BIN)/wsl:
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(@D) v1.61.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(@D) v2.1.2
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
