@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
 
 env:
-  GO_VERSION: "1.21.3"
+  GO_VERSION: "1.24"
 
 jobs:
   sqlc-diff:
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: sqlc-dev/setup-sqlc@v3
         with:
-          sqlc-version: '1.22.0'
+          sqlc-version: '1.23'
       - run: sqlc diff
   lint:
     needs: [sqlc-diff]
@@ -33,7 +33,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.54.2
+          version: v2.1.2
           args: --config=.golangci.yml
   test:
     runs-on: ubuntu-latest
