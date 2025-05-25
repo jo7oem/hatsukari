@@ -6,30 +6,37 @@ import (
 	"os"
 )
 
+type key int
+
 const (
-	loggerKey = "logger"
+	loggerKey key = iota
 )
 
-var Logger *slog.Logge
+var (
+	//nolint: gochecknoglobals
+	logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level:       slog.LevelDebug,
+		AddSource:   true,
+		ReplaceAttr: nil,
+	}))
+)
 
-
-var Logger *slog.Logger
-dlerOptions{L
-func init() {
-	logger := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: true})
-		Logger = slog.New(logger)
+// GetLogger はロガーを返す.
+func GetLogger() *slog.Logger {
+	return logger
 }
+
 // GetLoggerFromContext は、コンテキストからロガーを取得する。
 func GetLoggerFromContext(ctx context.Context) *slog.Logger {
 	if ctx == nil {
-		return Logger
+		return GetLogger()
 	}
 
 	if l, ok := ctx.Value(loggerKey).(*slog.Logger); ok {
 		return l
 	}
 
-	return Logger
+	return GetLogger()
 }
 
 // SetLoggerToContext は、コンテキストにロガーを設定する。
