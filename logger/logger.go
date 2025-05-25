@@ -13,8 +13,6 @@ const (
 var Logger *slog.Logge
 
 
-func init() {
-	Logger = slog.New(logger)
 var Logger *slog.Logger
 dlerOptions{L
 func init() {
