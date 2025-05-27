@@ -25,6 +25,13 @@ func TestLoadWebsiteConfig(t *testing.T) {
 			path:          "website.yaml",
 			yamlContent: `
 title: "My Site"
+siteRootDir: "/var/www"
+siteRoot:
+  themeEntrypoint: "theme.html"
+  topPageEntryPoint: "index.html"
+  distributionFiles:
+    - "robots.txt"
+    - "favicon.ico"
 contentMappings:
   - urlPath: "/static/"
     reference: "static"
@@ -36,7 +43,13 @@ contentMappings:
 `,
 			expectErr: false,
 			expect: &config.WebsiteConfig{
-				Title: "My Site",
+				Title:       "My Site",
+				SiteRootDir: "/var/www",
+				SiteRoot: config.SiteRoot{
+					ThemaTemplateFile: "theme.html",
+					TopPageEntryPoint: "index.html",
+					DistributionFiles: []string{"robots.txt", "favicon.ico"},
+				},
 				ContentMappings: []config.ContentMapping{
 					{
 						URLPath:           "/static/",
@@ -67,6 +80,13 @@ contentMappings:
 			path:          "invalid.yaml",
 			yamlContent: `
 title: "My Site"
+siteRootDir: "/var/www"
+siteRoot:
+  themeEntrypoint: "theme.html"
+  topPageEntryPoint: "index.html"
+  distributionFiles:
+    - "robots.txt"
+    - "favicon.ico"
 contentMappings:
   - urlPath: "/static/"
     reference: [invalid

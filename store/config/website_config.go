@@ -19,6 +19,12 @@ type WebsiteConfig struct {
 	// Title はWebサイトのタイトルを表します。
 	Title string `yaml:"title"`
 
+	// SiteRootDir はWebサイトのルートディレクトリを表します。
+	SiteRootDir string `yaml:"siteRootDir"`
+
+	// SiteRoot はWebサイトの"/"に関する設定を表します。
+	SiteRoot SiteRoot `yaml:"siteRoot"`
+
 	ContentMappings []ContentMapping `yaml:"contentMappings"`
 }
 
