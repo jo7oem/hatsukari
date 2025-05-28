@@ -1,7 +1,33 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/jo7oem/hatsukari/store/config"
+	"os"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	configPath := "sample/server_config.yaml"
+
+	serverConfig, err := config.LoadServerConfig(configPath)
+	if err != nil {
+		panic(err)
+	}
+
+	// handlerを構築していく
+	siteRoot, err := os.OpenRoot(serverConfig.SiteContentsDir)
+	if err != nil {
+		panic(err)
+	}
+	siteRoot.Open(serverConfig.SiteConfigName)
+	siteConf, err := config.LoadWebsiteConfig(siteRoot.FS(), serverConfig.SiteConfigName)
+	if err != nil {
+		panic(err)
+	}
+
+	_ = siteConf
+
+	//
+
+	fmt.Println("End")
 }

@@ -2,10 +2,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/jo7oem/hatsukari/logger"
-	"os"
-
 	"github.com/goccy/go-yaml"
+	"github.com/jo7oem/hatsukari/logger"
+	"io/fs"
 )
 
 const (
@@ -29,12 +28,12 @@ type WebsiteConfig struct {
 }
 
 // LoadWebsiteConfig は指定されたパスから設定を読み込みます。
-func LoadWebsiteConfig(path string) (*WebsiteConfig, error) {
-	file, err := os.Open(path)
+func LoadWebsiteConfig(root fs.FS, path string) (*WebsiteConfig, error) {
+	file, err := root.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
-	defer func(file *os.File) {
+	defer func(file fs.File) {
 		err := file.Close()
 		if err != nil {
 			l := logger.GetLogger()

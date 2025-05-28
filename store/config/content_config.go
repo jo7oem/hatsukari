@@ -7,11 +7,11 @@ type SiteRoot struct {
 	// ThemaEntryPoint はテンプレートファイルを示します.
 	// これは、サイト全体の構成を形作るファイルです。
 	// `template/html`で解釈できるHTMLテンプレートであることが期待されます。
-	ThemaEntryPoint string `yaml:"themeEntrypoint"`
+	ThemaEntryPoint string `yaml:"themaEntryPoint"`
 
-	// TopPageEntryPoint はトップページのHTMLテンプレートファイルを示します.
+	// TopEntryPoint はトップページのHTMLテンプレートファイルを示します.
 	// `template/html`で解釈できるHTMLテンプレートであることが期待されます。
-	TopPageEntryPoint string `yaml:"topPageEntryPoint"`
+	TopEntryPoint string `yaml:"topEntryPoint"`
 
 	// DistributionFiles は配布ファイルのリストを表します.
 	// これはルート直下で提供されるファイルのリストを指定します.

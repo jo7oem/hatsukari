@@ -47,7 +47,7 @@ contentMappings:
 				SiteRootDir: "/var/www",
 				SiteRoot: config.SiteRoot{
 					ThemaEntryPoint:   "theme.html",
-					TopPageEntryPoint: "index.html",
+					TopEntryPoint:     "index.html",
 					DistributionFiles: []string{"robots.txt", "favicon.ico"},
 				},
 				ContentMappings: []config.ContentMapping{
@@ -107,7 +107,12 @@ contentMappings:
 				t.Fatalf("failed to write yaml: %v", err)
 			}
 
-			cfg, err := config.LoadWebsiteConfig(path)
+			tmpFS, err := os.OpenRoot(tmpDir)
+			if err != nil {
+				t.Fatalf("failed to open tmp dir: %v", err)
+			}
+
+			cfg, err := config.LoadWebsiteConfig(tmpFS.FS(), "server.yaml")
 			if tt.expectErr != (err != nil) {
 				t.Errorf("LoadWebsiteConfig() error = %v, expectErr %v", err, tt.expectErr)
 
