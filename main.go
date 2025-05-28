@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	siteRoot.Open(serverConfig.SiteConfigName)
+
 	siteConf, err := config.LoadWebsiteConfig(siteRoot.FS(), serverConfig.SiteConfigName)
 	if err != nil {
 		panic(err)
