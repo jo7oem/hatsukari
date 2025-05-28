@@ -1,0 +1,7 @@
+title: hatsukari
+siteRootDir: root
+siteRoot:
+    themaEntryPoint: "template.html"
+    topEntryPoint: "index.html"
+    distributionFiles: []
+contentMappings: []

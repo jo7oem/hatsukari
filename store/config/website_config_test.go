@@ -46,7 +46,7 @@ contentMappings:
 				Title:       "My Site",
 				SiteRootDir: "/var/www",
 				SiteRoot: config.SiteRoot{
-					ThemaTemplateFile: "theme.html",
+					ThemaEntryPoint:   "theme.html",
 					TopPageEntryPoint: "index.html",
 					DistributionFiles: []string{"robots.txt", "favicon.ico"},
 				},

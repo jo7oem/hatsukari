@@ -4,10 +4,10 @@ package config
 // `/`直下で提供されるコンテンツの設定を定義します.
 // これは、Webサイトの全体の共通テーマの定義、トップページのエントリポイントなどを含みます.
 type SiteRoot struct {
-	// ThemaTemplateFile はテンプレートファイルを示します.
+	// ThemaEntryPoint はテンプレートファイルを示します.
 	// これは、サイト全体の構成を形作るファイルです。
 	// `template/html`で解釈できるHTMLテンプレートであることが期待されます。
-	ThemaTemplateFile string `yaml:"themeEntrypoint"`
+	ThemaEntryPoint string `yaml:"themeEntrypoint"`
 
 	// TopPageEntryPoint はトップページのHTMLテンプレートファイルを示します.
 	// `template/html`で解釈できるHTMLテンプレートであることが期待されます。
