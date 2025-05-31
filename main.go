@@ -25,8 +25,12 @@ func main() {
 		panic(err)
 	}
 
-	_ = siteConf
+	root, err := siteRoot.OpenRoot(siteConf.SiteRootDir)
+	if err != nil {
+		panic(err)
+	}
 
+	_ = root
 	//
 
 	fmt.Println("End")
