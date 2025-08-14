@@ -22,9 +22,15 @@ linters:
   # https://golangci-lint.run/usage/linters/#disabled-by-default
   disable:
       - depguard
+      - wsl
 
   # All available settings of specific linters.
   settings:
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+
     cyclop:
       # The maximal code complexity to report.
       # Default: 10

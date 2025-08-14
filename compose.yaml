@@ -1,11 +1,14 @@
 ---
 services:
   app:
-    image: "golang:1.24"
+    image: "golang:1.25"
     command: "./dev_tools/bin/air -c .air.toml"
     working_dir: /go/src/github.com/jo7oem/hatsukari
     volumes:
       - ./:/go/src/github.com/jo7oem/hatsukari
+      - type: bind
+        source: ./dev_tools/modcache
+        target: /go/pkg/mod
     environment:
      SERVER_ADDRESS: ":8080"
      CONFIG_PATH: "hatsukari.yaml"
