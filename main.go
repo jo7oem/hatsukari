@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/jo7oem/hatsukari/store/config"
 	"os"
+
+	"github.com/gomarkdown/markdown"
+	"github.com/jo7oem/hatsukari/store/config"
 )
 
 func main() {
@@ -32,6 +34,9 @@ func main() {
 
 	_ = root
 	//
+
+	var r markdown.Renderer
+	_ = r
 
 	fmt.Println("End")
 }

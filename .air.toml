@@ -7,7 +7,7 @@ tmp_dir = "tmp"
   bin = "./dev_tools/bin/dlv --continue --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./tmp/main"
   cmd = 'go build -gcflags="all=-N -l" -buildvcs=false -o ./tmp/main .'
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata","dev_tools/modcache"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false

@@ -17,7 +17,7 @@ lint: $(DEV_BIN)/golangci-lint
 	$(DEV_BIN)/golangci-lint run --config=.golangci.yml
 
 .PHONY: setup
-setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint $(DEV_BIN)/sqlc $(DEV_BIN)/migrate
+setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint
 
 $(DEV_BIN)/air:
 	mkdir -p $(@D)
@@ -30,7 +30,7 @@ $(DEV_BIN)/golangci-lint:
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
-	GOBIN=$(ABS_DEV_BIN) go install github.com/go-delve/delve/cmd/dlv@latest
+	go install github.com/go-delve/delve/cmd/dlv@latest
 
 $(DEV_BIN)/sqlc:
 	mkdir -p $(@D)
