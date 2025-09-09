@@ -30,9 +30,9 @@ siteConfigName: "site.yaml"
 `,
 			expectErr: false,
 			expect: &config.ServerConfig{
-				Address:         "localhost:8080",
-				SiteContentsDir: "./sample",
-				SiteConfigName:  "site.yaml",
+				Address:        "localhost:8080",
+				SiteRoot:       "./sample",
+				SiteConfigName: "site.yaml",
 			},
 		},
 		{

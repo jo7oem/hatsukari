@@ -1,7 +1,20 @@
-title: hatsukari
-siteRootDir: root
-siteRoot:
-    themaEntryPoint: "template.html"
-    topEntryPoint: "index.html"
-    distributionFiles: []
-contentMappings: []
+title: "hatsukari はつかり"
+siteStile:
+    directory: "stile_style"
+    config: "style.yaml"
+contentMappings:
+    "/":
+        type: "dynamic"
+        directory: "top_page"
+        config: "top_page_config.yaml"
+    "/static/":
+        type: "static_dir"
+        directory: "static"
+    "/about/":
+        type: "static_files"
+        directory: "about"
+        config: "about_config.yaml"
+    "/blog/":
+        type: "blog"
+        directory: "blog"
+        config: "blog_config.yaml"

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gomarkdown/markdown"
 	"github.com/jo7oem/hatsukari/store/config"
@@ -17,7 +16,7 @@ func main() {
 	}
 
 	// handlerを構築していく
-	siteRoot, err := os.OpenRoot(serverConfig.SiteContentsDir)
+	siteRoot, err := serverConfig.SiteRootFS()
 	if err != nil {
 		panic(err)
 	}

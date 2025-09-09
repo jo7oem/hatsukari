@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/jo7oem/hatsukari/logger"
 	"os"
+	"path/filepath"
+
+	"github.com/jo7oem/hatsukari/logger"
 
 	"github.com/goccy/go-yaml"
 )
@@ -14,22 +16,43 @@ type ServerConfig struct {
 	// ex.) "localhost:8080"
 	Address string `yaml:"address"`
 
-	// SiteContentsDir はWebサイトが配置されたディレクトリを表します。
+	// SiteRoot はWebサイトが配置されたディレクトリを表します。
 	// これは、Webサイトのルートディレクトリを指定します。
 	// サーバーはこのディレクトリ内のコンテンツを提供します。
 	// ex.) "./sample"
-	SiteContentsDir string `yaml:"siteContentsDir"`
+	SiteRoot string `yaml:"siteRoot"`
 
 	// SiteConfigName は`SiteContentsDir`配下に存在するWebサイトの設定ファイル名を表します。
 	// これは、Webサイトの設定を定義するYAMLファイルの名前を指定します。
-	// SiteContentsDir からの相対パスで指定されます。
+	// SiteRoot からの相対パスで指定されます。
 	// ex.) "site.yaml"
 	SiteConfigName string `yaml:"siteConfigName"`
+
+	readConfigPath string
+}
+
+func (sc ServerConfig) ConfigDir() string {
+	return filepath.Dir(sc.readConfigPath)
+}
+func (sc ServerConfig) SiteRootFS() (*os.Root, error) {
+	scDir := sc.ConfigDir()
+
+	if filepath.IsAbs(sc.SiteRoot) {
+		return os.OpenRoot(sc.SiteRoot)
+	}
+
+	absPath := filepath.Join(scDir, sc.SiteRoot)
+	return os.OpenRoot(absPath)
 }
 
 // LoadServerConfig は指定されたパスから設定を読み込みます。
 func LoadServerConfig(path string) (*ServerConfig, error) {
-	file, err := os.Open(path)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	file, err := os.Open(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
@@ -46,6 +69,8 @@ func LoadServerConfig(path string) (*ServerConfig, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
+
+	config.readConfigPath = absPath
 
 	return &config, nil
 }
