@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gomarkdown/markdown"
+	"github.com/jo7oem/hatsukari/store/cache"
 	"github.com/jo7oem/hatsukari/store/config"
 )
 
@@ -26,12 +27,15 @@ func main() {
 		panic(err)
 	}
 
-	root, err := siteRoot.OpenRoot(siteConf.SiteRootDir)
+	_ = siteConf
+
+	cm, err := cache.NewCacheManager("tmp/.cache")
 	if err != nil {
 		panic(err)
 	}
 
-	_ = root
+	defer cm.Close()
+
 	//
 
 	var r markdown.Renderer

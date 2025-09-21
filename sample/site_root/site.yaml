@@ -1,20 +1,17 @@
 title: "hatsukari はつかり"
-siteStile:
-    directory: "stile_style"
-    config: "style.yaml"
+siteRoot:
+  directory: "root"
+  config: "root_config.yaml"
 contentMappings:
-    "/":
-        type: "dynamic"
-        directory: "top_page"
-        config: "top_page_config.yaml"
-    "/static/":
-        type: "static_dir"
-        directory: "static"
-    "/about/":
-        type: "static_files"
-        directory: "about"
-        config: "about_config.yaml"
-    "/blog/":
-        type: "blog"
-        directory: "blog"
-        config: "blog_config.yaml"
+  "/static/":
+    type: "static_dir"
+    directory: "static"
+  "/about/":
+    type: "content"
+    directory: "about"
+    config: "about_config.yaml"
+    subTitle: "About"
+  "/blog/":
+    type: "blog"
+    directory: "blog"
+    config: "blog_config.yaml"

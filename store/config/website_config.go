@@ -2,29 +2,28 @@ package config
 
 import (
 	"fmt"
+	"io/fs"
+
 	"github.com/goccy/go-yaml"
 	"github.com/jo7oem/hatsukari/logger"
-	"io/fs"
 )
 
 const (
-	ContentTypeStaticDir   = "static_dir"
-	ContentTypeStaticFiles = "static_files"
-	ContentTypePage        = "page"
+	ContentTypeRoot      = "root"
+	ContentTypeStaticDir = "static_dir"
+	ContentTypeContent   = "content"
+	ContentTypeBlog      = "blog"
 )
 
 // WebsiteConfig はWebサイトのコンテンツに関する設定。
 type WebsiteConfig struct {
 	// Title はWebサイトのタイトルを表します。
-	Title string `yaml:"title"`
+	Title    string         `yaml:"title"`
+	SiteRoot ContentMapping `yaml:"siteTemplate"`
 
-	// SiteRootDir はWebサイトのルートディレクトリを表します。
-	SiteRootDir string `yaml:"siteRootDir"`
+	ContentMappings map[string]ContentMapping `yaml:"contentMappings"`
 
-	// SiteRoot はWebサイトの"/"に関する設定を表します。
-	SiteRoot SiteRoot `yaml:"siteRoot"`
-
-	ContentMappings []ContentMapping `yaml:"contentMappings"`
+	rootFs fs.FS
 }
 
 // LoadWebsiteConfig は指定されたパスから設定を読み込みます。
@@ -48,21 +47,22 @@ func LoadWebsiteConfig(root fs.FS, path string) (*WebsiteConfig, error) {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
 
+	config.rootFs = root
+
 	return &config, nil
 }
 
 // ContentMapping はWebサイトのコンテンツとその設定をマッピングするための型.
 type ContentMapping struct {
-	// URLPath はコンテンツのURLパスを表します。
-	URLPath string `yaml:"urlPath"`
-	// Reference はWebサイトルートからの相対パスで、コンテンツのディレクトリを指す
-	Reference string `yaml:"reference"`
-	// ContentType はコンテンツの種類を表します。
-	ContentType string `yaml:"contentType"`
+	// Type はコンテンツの種類を表します。
+	Type string `yaml:"Type"`
+
+	Directory string `yaml:"Directory"`
 	// ContentConfigName はコンテンツの設定ファイル名を表します。
 	// これは、コンテンツの設定を定義するYAMLファイルの名前を指定します。
 	// ContentTypeの種別によっては使用されないため無視されます.
 	// SiteContentsDir からの相対パスで指定されます。
 	// 例: "content.yaml"
 	ContentConfigName string `yaml:"contentConfigName,omitempty"`
+	SubTitle          string `yaml:"subTitle,omitempty"`
 }
