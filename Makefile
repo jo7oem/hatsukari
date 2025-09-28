@@ -26,7 +26,7 @@ $(DEV_BIN)/air:
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
