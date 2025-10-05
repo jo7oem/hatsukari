@@ -30,7 +30,7 @@ $(DEV_BIN)/golangci-lint:
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
-	go install github.com/go-delve/delve/cmd/dlv@latest
+	go install github.com/go-delve/delve/cmd/dlv@v1.25.2
 
 $(DEV_BIN)/sqlc:
 	mkdir -p $(@D)
