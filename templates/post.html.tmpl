@@ -1,0 +1,27 @@
+{{ define "post" -}}
+<article>
+  <h1>{{ .Post.Title }}</h1>
+  <p><time datetime="{{ .Post.Date | dateISO }}">{{ .Post.Date | dateJST }}</time></p>
+
+  {{ if .Post.Summary }}
+  <section class="post-summary">
+    <h2>概要</h2>
+    <p>{{ .Post.Summary }}</p>
+  </section>
+  {{ end }}
+
+  {{ if .Post.TOCHTML }}
+  <section class="post-toc">
+    {{ .Post.TOCHTML | safeHTML }}
+  </section>
+  {{ end }}
+
+  <div class="post-body">{{ safeHTML .Post.BodyHTML }}</div>
+
+  {{ if .Post.Tags }}
+  <ul class="tags">
+    {{ range .Post.Tags }}<li><a href="/tags/{{ . | slug }}/">{{ . }}</a></li>{{ end }}
+  </ul>
+  {{ end }}
+</article>
+{{- end }}

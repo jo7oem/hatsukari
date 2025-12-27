@@ -1,0 +1,13 @@
+{{ define "tag" -}}
+<section>
+  <h1>タグ: {{ .Tag }}</h1>
+  <ul>
+    {{ range .Posts }}
+      <li>
+        <a href="/posts/{{ .Slug }}/">{{ .Title }}</a>
+        <small><time datetime="{{ .Date | dateISO }}">{{ .Date | dateJST }}</time></small>
+      </li>
+    {{ end }}
+  </ul>
+</section>
+{{- end }}
