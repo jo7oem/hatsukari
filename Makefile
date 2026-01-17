@@ -4,6 +4,9 @@ export GOBIN
 MAKEFILE_DIR := $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))&&pwd )
 ABS_DEV_BIN := $(MAKEFILE_DIR)/$(DEV_BIN)
 
+WEB_DIR := $(MAKEFILE_DIR)/web
+PUBLIC_DIR := $(MAKEFILE_DIR)/public
+
 .PHONY: build
 build:
 	go build -o hatsukari ./...
@@ -26,7 +29,7 @@ $(DEV_BIN)/air:
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.1
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
@@ -35,8 +38,20 @@ $(DEV_BIN)/dlv:
 .PHONY: ci
 ci: lint
 
+# --- Web assets (Vite) ---
+.PHONY: web-install
+web-install:
+	cd $(WEB_DIR) && npm install
+
+.PHONY: web-build
+web-build:
+	mkdir -p $(PUBLIC_DIR)/assets
+	cd $(WEB_DIR) && npm run build
+
+.PHONY: build-all
+build-all: build web-build
+
 .PHONY: clean
 clean:
 	rm -rf dev_tools/bin
-
-
+	rm -rf $(PUBLIC_DIR)/assets
