@@ -2,6 +2,7 @@ package site
 
 import (
 	"io"
+	"net/http"
 	"os"
 
 	"github.com/goccy/go-yaml"
@@ -42,8 +43,31 @@ func openContentConfig(fs *os.Root) (*ContentConfig, error) {
 }
 
 func OpenContentDir(fs *os.Root, path string) (*Content, error) {
+	root, err := fs.OpenRoot(path)
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := openContentConfig(root)
+	switch {
+	case os.IsNotExist(err):
+		conf = &ContentConfig{}
+	case err == nil:
+		// ok
+	default:
+		return nil, err
+	}
+
+	return &Content{config: *conf,
+		root: root}, nil
 }
 
 type Content struct {
 	config ContentConfig
+	root   *os.Root
+}
+
+func (c Content) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	//TODO implement me
+	panic("implement me")
 }

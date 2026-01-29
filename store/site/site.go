@@ -82,7 +82,7 @@ type Site struct {
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL.Path)
-	http.NotFound(w, r)
+	s.mux.ServeHTTP(w, r)
 }
 
 func (s *Site) Close() error {
@@ -94,5 +94,13 @@ func (s *Site) Config() SiteConfig {
 }
 
 func (s *Site) Setup() error {
+	mux := http.NewServeMux()
+	root, err := OpenContentDir(s.fs, s.Config().RootContentDir)
+	if err != nil {
+		return err
+	}
+
+	mux.Handle("/", root)
+	s.mux = mux
 	return nil
 }
