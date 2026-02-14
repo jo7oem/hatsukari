@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
+	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/site"
 )
 
@@ -18,7 +21,9 @@ func main() {
 	}
 	defer s.Close()
 
-	_ = s
+	l := logging.NewLogger(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	l.Debug("start")
+	l.Error("sample error message", slog.String("key", "value"))
 
 	fmt.Println(s.Config())
 	log.Println("build: done")
