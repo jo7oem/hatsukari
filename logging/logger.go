@@ -144,7 +144,7 @@ func (l *Logger) log(ctx context.Context, level slog.Level, msg string, attrs ..
 			}
 		}
 
-		r.AddAttrs(slog.String("code_trace", s.String()))
+		r.AddAttrs(slog.String("stacktrace", s.String()))
 	}
 
 	_ = l.Handler().Handle(ctx, r)

@@ -20,8 +20,11 @@ func main() {
 		log.Fatalf("build: failed to open site dir: %v", err)
 	}
 	defer s.Close()
+	sl := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: true})
+	ll := slog.New(sl)
+	ll.Debug("start")
 
-	l := logging.NewLogger(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	l := logging.NewLogger(sl)
 	l.Debug("start")
 	l.Error("sample error message", slog.String("key", "value"))
 

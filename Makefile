@@ -24,16 +24,16 @@ setup: $(DEV_BIN)/air $(DEV_BIN)/dlv $(DEV_BIN)/golangci-lint
 
 $(DEV_BIN)/air:
 	mkdir -p $(@D)
-	go install github.com/air-verse/air@v1.62.0
+	go install github.com/air-verse/air@latest
 
 
 $(DEV_BIN)/golangci-lint:
 	mkdir -p $(@D)
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0
 
 $(DEV_BIN)/dlv:
 	mkdir -p $(@D)
-	go install github.com/go-delve/delve/cmd/dlv@v1.25.2
+	go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 .PHONY: ci
 ci: lint
