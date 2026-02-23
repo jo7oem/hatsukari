@@ -15,7 +15,7 @@ type Content struct {
 	// 親コンテンツへの参照。ルートコンテンツの場合は nil になる
 	parent *Content
 	// 親コンテンツからの相対パス。ルートコンテンツの場合は空文字になる
-	path string
+	relPath string
 	// このコンテンツのルートディレクトリへの参照
 	root          *os.Root
 	ContentConfig ContentConfig
@@ -36,7 +36,7 @@ func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error)
 	}
 	c := &Content{
 		parent:  parent,
-		path:    path,
+		relPath: path,
 		root:    root,
 		serveFS: http.FileServerFS(root.FS()),
 	}
@@ -120,7 +120,7 @@ func (c *Content) Path() string {
 	if c.parent == nil {
 		return "/"
 	}
-	return path.Join(c.parent.Path(), c.path) + "/"
+	return path.Join(c.parent.Path(), c.relPath) + "/"
 }
 
 func (c *Content) setup() error {
