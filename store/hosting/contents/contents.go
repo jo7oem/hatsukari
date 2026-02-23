@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +17,7 @@ type Content struct {
 	parent *Content
 	// 親コンテンツからの相対パス。ルートコンテンツの場合は空文字になる
 	relPath string
+	path    func() string
 	// このコンテンツのルートディレクトリへの参照
 	root          *os.Root
 	ContentConfig ContentConfig
@@ -41,6 +43,8 @@ func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error)
 		serveFS: http.FileServerFS(root.FS()),
 	}
 
+	c.path = sync.OnceValue(c.calcPath)
+
 	if err := c.setup(); err != nil {
 		return nil, err
 	}
@@ -49,7 +53,6 @@ func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error)
 }
 
 func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path, " content path:", c.Path())
 	c.mux.ServeHTTP(w, r)
 }
 
@@ -63,9 +66,6 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 5. /posts/index.md
 // また、セキュリティ上の理由から、相対パスが '.' で始まっている場合は 404 Not Found を返す。
 func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, "/child/priority_4") {
-		fmt.Println("URL path is empty, redirecting to /")
-	}
 	relPath, err := filepath.Rel(c.Path(), r.URL.Path)
 	if relPath == "." {
 		relPath = "index"
@@ -117,6 +117,10 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Content) Path() string {
+	return c.path()
+}
+
+func (c *Content) calcPath() string {
 	if c.parent == nil {
 		return "/"
 	}
