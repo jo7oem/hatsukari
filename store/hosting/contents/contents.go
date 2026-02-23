@@ -63,6 +63,9 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 5. /posts/index.md
 // また、セキュリティ上の理由から、相対パスが '.' で始まっている場合は 404 Not Found を返す。
 func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/child/" {
+		fmt.Println("URL path is empty, redirecting to /")
+	}
 	relPath, err := filepath.Rel(c.Path(), r.URL.Path)
 	if relPath == "." {
 		relPath = "index"
@@ -92,6 +95,9 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			f, err := c.root.Open(p)
 			if err == nil {
 				relPath = relPath + ext
+				if strings.HasSuffix(relPath, "index.html") {
+					relPath = strings.TrimSuffix(relPath, "index.html")
+				}
 				_ = f.Close()
 				break
 			}

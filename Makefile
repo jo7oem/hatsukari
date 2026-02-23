@@ -55,3 +55,7 @@ build-all: build web-build
 clean:
 	rm -rf dev_tools/bin
 	rm -rf $(PUBLIC_DIR)/assets
+
+.PHONY: test
+test:
+	go test --race -v ./...

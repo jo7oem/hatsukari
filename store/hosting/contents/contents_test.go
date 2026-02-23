@@ -58,19 +58,49 @@ func TestContent_ServeHTTP(t *testing.T) {
 		wantError  bool
 	}
 	tests := []struct {
-		name    string
-		path    string
-		subtest subtest
+		name     string
+		path     string
+		subtests []subtest
 	}{
+
 		{
 			name: "simple content dir",
 			path: "simple",
-			subtest: subtest{
-				name:       "serve index.html",
-				url:        "/",
-				wantStatus: http.StatusOK,
-				wantBody:   "index.md",
-				wantError:  false,
+			subtests: []subtest{
+				{
+					name:       "serve index.html",
+					url:        "/",
+					wantStatus: http.StatusOK,
+					wantBody:   "index.md",
+					wantError:  false,
+				},
+			},
+		},
+		{
+			name: "content dir with nested content",
+			path: "nests",
+			subtests: []subtest{
+				{
+					name:       "root",
+					url:        "/",
+					wantStatus: http.StatusOK,
+					wantBody:   "index.md",
+					wantError:  false,
+				},
+				{
+					name:       "child content",
+					url:        "/child/",
+					wantStatus: http.StatusOK,
+					wantBody:   "index.html",
+					wantError:  false,
+				},
+				{
+					name:       "grandchild content",
+					url:        "/child/grandchild/",
+					wantStatus: http.StatusOK,
+					wantBody:   "g",
+					wantError:  false,
+				},
 			},
 		},
 	}
@@ -81,10 +111,11 @@ func TestContent_ServeHTTP(t *testing.T) {
 		}
 
 		server := httptest.NewServer(content)
-		for _, subTest := range []subtest{tt.subtest} {
-			t.Run(subTest.name, func(t *testing.T) {
+		for _, subTest := range tt.subtests {
+			t.Run(tt.name+"/"+subTest.name, func(t *testing.T) {
 				t.Parallel()
-				resp, err := server.Client().Get(server.URL + subTest.url)
+				p := server.URL + subTest.url
+				resp, err := server.Client().Get(p)
 				if (err != nil) != subTest.wantError {
 					t.Errorf("Get() error = %v, wantError %v", err, subTest.wantError)
 					return
