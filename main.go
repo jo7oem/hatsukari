@@ -1,37 +1,35 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/jo7oem/hatsukari/logging"
-	"github.com/jo7oem/hatsukari/store/site"
+	"github.com/jo7oem/hatsukari/store/hosting/site"
 )
 
 // フェーズ5: 全記事を対象に一覧・詳細・タグ別を生成し、assets をコピー
 func main() {
 	samplePath := "./sample"
+	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
 
-	s, err := site.OpenSiteDir(samplePath)
+	siteMap, err := site.OpenSiteDir(samplePath)
 	if err != nil {
-		log.Fatalf("build: failed to open site dir: %v", err)
+		logger.Error("failed to open site dir", err)
+		return
 	}
-	defer s.Close()
-	sl := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug, AddSource: true})
-	ll := slog.New(sl)
-	ll.Debug("start")
 
-	l := logging.NewLogger(sl)
-	l.Debug("start")
-	l.Error("sample error message", slog.String("key", "value"))
+	if err := siteMap.Setup(); err != nil {
+		logger.Error("failed to setup site", err)
+		return
+	}
 
-	fmt.Println(s.Config())
-	log.Println("build: done")
-	err = http.ListenAndServe(":8080", s)
+	err = http.ListenAndServe(":8080", siteMap)
 	if err != nil {
-		log.Fatalf("server: failed to start server: %v", err)
+		log.Fatal(err)
 	}
+
+	logger.Info("server started at :8080")
 }

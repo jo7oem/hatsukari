@@ -1,4 +1,3 @@
 title: "サンプル"
 templatesDir: "templates"
-rootContentDir: "root"
-contentDirs: []
+rootContentDir: "./"

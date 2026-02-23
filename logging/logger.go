@@ -11,13 +11,15 @@ import (
 
 type Logger struct {
 	handler       slog.Handler
+	namespace     string
 	saveCodeTrace slog.Level
 	ctxWiths      []ctxWith
 }
 
-func NewLogger(h slog.Handler) *Logger {
+func NewLogger(h slog.Handler, namespace string) *Logger {
 	return &Logger{
 		handler:       h,
+		namespace:     namespace,
 		saveCodeTrace: slog.LevelError,
 	}
 }
@@ -100,11 +102,17 @@ func (l *Logger) WarnContext(ctx context.Context, msg string, attrs ...slog.Attr
 	l.log(ctx, slog.LevelWarn, msg, attrs...)
 }
 
-func (l *Logger) Error(msg string, attrs ...slog.Attr) {
+func (l *Logger) Error(msg string, err error, attrs ...slog.Attr) {
+	if err != nil {
+		attrs = append([]slog.Attr{slog.Any("error", err)}, attrs...)
+	}
 	l.log(context.Background(), slog.LevelError, msg, attrs...)
 }
 
-func (l *Logger) ErrorContext(ctx context.Context, msg string, attrs ...slog.Attr) {
+func (l *Logger) ErrorContext(ctx context.Context, msg string, err error, attrs ...slog.Attr) {
+	if err != nil {
+		attrs = append([]slog.Attr{slog.Any("error", err)}, attrs...)
+	}
 	l.log(ctx, slog.LevelError, msg, attrs...)
 }
 
@@ -118,6 +126,7 @@ func (l *Logger) log(ctx context.Context, level slog.Level, msg string, attrs ..
 		return
 	}
 	r := slog.NewRecord(time.Now(), level, msg, 0)
+	r.AddAttrs(slog.String("namespace", l.namespace))
 	r.AddAttrs(attrs...)
 
 	for _, cw := range l.ctxWiths {
@@ -155,6 +164,7 @@ func (l *Logger) clone() *Logger {
 	copy(cw, l.ctxWiths)
 	return &Logger{
 		handler:       l.handler,
+		namespace:     l.namespace,
 		saveCodeTrace: l.saveCodeTrace,
 		ctxWiths:      cw,
 	}

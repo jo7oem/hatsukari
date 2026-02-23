@@ -1,0 +1,7 @@
+registerIndexing: true
+indexTitle:
+    ja: "記事一覧"
+    en: "Posts"
+defaultLocale: ja
+templatesDir: templates
+contentsDir: []

@@ -2,12 +2,12 @@ package site
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/goccy/go-yaml"
+	"github.com/jo7oem/hatsukari/store/hosting/contents"
+	"gopkg.in/yaml.v3"
 )
 
 type SiteConfig struct {
@@ -32,13 +32,8 @@ func openSiteConfig(fs *os.Root) (*SiteConfig, error) {
 
 	defer func() { _ = f.Close() }()
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
 	var config SiteConfig
-	err = yaml.Unmarshal(data, &config)
+	err = yaml.NewDecoder(f).Decode(&config)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +90,7 @@ func (s *Site) Config() SiteConfig {
 
 func (s *Site) Setup() error {
 	mux := http.NewServeMux()
-	root, err := OpenContentDir(s.fs, s.Config().RootContentDir)
+	root, err := contents.OpenContentDir(s.fs, s.Config().RootContentDir)
 	if err != nil {
 		return err
 	}
