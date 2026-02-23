@@ -116,6 +116,13 @@ func TestContent_ServeHTTP(t *testing.T) {
 					wantError:  false,
 				},
 				{
+					name:       "child content without trailing slash",
+					url:        "/child",
+					wantStatus: http.StatusOK,
+					wantBody:   "index.html",
+					wantError:  false,
+				},
+				{
 					name:       "grandchild content",
 					url:        "/child/grandchild/",
 					wantStatus: http.StatusOK,
