@@ -63,7 +63,7 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 5. /posts/index.md
 // また、セキュリティ上の理由から、相対パスが '.' で始まっている場合は 404 Not Found を返す。
 func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/child/" {
+	if strings.HasPrefix(r.URL.Path, "/child/priority_4") {
 		fmt.Println("URL path is empty, redirecting to /")
 	}
 	relPath, err := filepath.Rel(c.Path(), r.URL.Path)
@@ -81,25 +81,34 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(relPath) > 1 && relPath[len(relPath)-1] == '/' {
-		relPath = relPath + "index"
-	}
-
 	if ext := path.Ext(relPath); ext == "" {
 		if err != nil || relPath == ".." || strings.HasPrefix(relPath, "../") {
 			http.NotFound(w, r)
 			return
 		}
-		for _, ext := range []string{".html", ".md"} {
+	search:
+		for _, ext := range []string{"", ".html", ".md"} {
 			p := relPath + ext
 			f, err := c.root.Open(p)
-			if err == nil {
+			switch {
+			case err == nil && ext == "":
+				if stat, err := f.Stat(); err == nil && stat.IsDir() {
+					relPath = relPath + "/index"
+					_ = f.Close()
+					goto search
+				}
+				_ = f.Close()
+				break
+
+			case err == nil:
 				relPath = relPath + ext
 				if strings.HasSuffix(relPath, "index.html") {
 					relPath = strings.TrimSuffix(relPath, "index.html")
 				}
 				_ = f.Close()
 				break
+			default:
+				continue
 			}
 		}
 	}
