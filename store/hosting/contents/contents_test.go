@@ -1,53 +1,45 @@
-package contents
+package contents_test
 
 import (
+	"os"
 	"testing"
+
+	"github.com/jo7oem/hatsukari/store/hosting/contents"
 )
 
-func TestContent_Path(t *testing.T) {
+var testFS = func() *os.Root {
+	root, err := os.OpenRoot("./assets_test")
+	if err != nil {
+		panic(err)
+	}
+
+	return root
+}()
+
+func TestOpenContentDir(t *testing.T) {
 	tests := []struct {
-		name   string
-		parent *Content
-		path   string
-		want   string
+		name    string
+		path    string
+		wantErr bool
 	}{
 		{
-			name:   "root",
-			parent: nil,
-			path:   "",
-			want:   "/",
+			name:    "simple content dir",
+			path:    "simple",
+			wantErr: false,
 		},
 		{
-			name: "child",
-			parent: &Content{
-				parent: nil,
-				path:   "parent",
-			},
-			path: "child",
-			want: "/child/",
-		},
-		{
-			name: "grandchild",
-			parent: &Content{
-				parent: &Content{
-					parent: nil,
-					path:   "",
-				},
-				path: "parent",
-			},
-			path: "grandchild",
-			want: "/parent/grandchild/",
+			name:    "content dir with nested content",
+			path:    "nests",
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &Content{
-				parent: tt.parent,
-				path:   tt.path,
-			}
-			if got := c.Path(); got != tt.want {
-				t.Errorf("Path() = %v, want %v", got, tt.want)
+			_, err := contents.OpenContentDir(testFS, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("OpenContentDir() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
 		})
 	}
