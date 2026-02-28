@@ -139,9 +139,7 @@ func (c *Content) resolveContentPathByPriority(relPath string) (string, bool) {
 	}
 
 	// http.FileServerFS() のディレクトリハンドリング挙動に合わせるため、index.html を URL 末尾の '/' として扱う。
-	if strings.HasSuffix(candidate, "index.html") {
-		candidate = strings.TrimSuffix(candidate, "index.html")
-	}
+	candidate, _ = strings.CutSuffix(candidate, "index.html")
 	return candidate, true
 }
 
