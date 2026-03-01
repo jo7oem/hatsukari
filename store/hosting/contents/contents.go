@@ -2,12 +2,14 @@ package contents
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
 	"strings"
 	"sync"
 
+	"github.com/jo7oem/hatsukari/store/hosting/renderer"
 	"gopkg.in/yaml.v3"
 )
 
@@ -76,8 +78,27 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
 	r.URL.Path = resolvedPath
+
+	if strings.HasSuffix(resolvedPath, ".md") {
+		f, err := c.root.Open(resolvedPath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer func() { _ = f.Close() }()
+		b, err := io.ReadAll(f)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		render := renderer.NewRenderer(b)
+		render.ServeHTTP(w, r)
+
+		return
+	}
+
 	c.serveFS.ServeHTTP(w, r)
 }
 
