@@ -6,9 +6,8 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
-      - type: bind
-        source: ./dev_tools/modcache
-        target: /go/pkg/mod
+      - modcache:/go/pkg/mod
+      - build_cache:/root/.cache/go-build
     environment:
      SERVER_ADDRESS: ":8080"
      CONFIG_PATH: "hatsukari.yaml"
@@ -16,3 +15,7 @@ services:
     ports:
         - "2345:2345"
         - "8080:8080"
+volumes:
+  modcache:
+  build_cache:
+
