@@ -11,6 +11,12 @@
     - semantic commit を使用する
 - コマンドの出力が確認できない場合、 get last command / check background terminal を使用して確認すること
 
+## テスト標準
+- テスト関数名は `Test<構造体名>_<メソッド名>` の形式を標準とする
+  - 例: `TestRenderer_Render`
+- サブケースはテーブル駆動で `tests := []struct{...}` を定義し、`t.Run(tt.name, ...)` で実行する
+- 新規テスト作成時、既存の別形式（単発関数名や重複ケース）を見つけたら標準形へ統一する
+
 ## develop
 各作業を以下のように定義する。
 - 「調査」と指示された場合、都度 docs/reports に記載すること
@@ -30,3 +36,4 @@
 - docs/architecture.md : アーキテクチャ設計
 - docs/schema.md : データ構造
 - docs/requirements.md : 要件定義
+

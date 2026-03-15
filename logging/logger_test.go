@@ -91,6 +91,7 @@ func TestLogger_Info(t *testing.T) {
 			},
 		},
 	}
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -144,6 +145,7 @@ func TestLogger_Debug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cph := newHandler(tt.level)
 			l := logging.NewLogger(cph.handler, "test")
 			l.Debug(tt.msg, tt.attrs...)
@@ -193,6 +195,7 @@ func TestLogger_Warn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cph := newHandler(tt.level)
 			l := logging.NewLogger(cph.handler, "test")
 			l.Warn(tt.msg, tt.attrs...)
@@ -242,6 +245,7 @@ func TestLogger_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cph := newHandler(tt.level)
 			l := logging.NewLogger(cph.handler, "test")
 			l.Error(tt.msg, tt.err)

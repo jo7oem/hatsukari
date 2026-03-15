@@ -22,6 +22,8 @@ var testFS = func() *os.Root {
 }()
 
 func TestOpenContentDir(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		path    string
@@ -56,6 +58,8 @@ func TestOpenContentDir(t *testing.T) {
 }
 
 func TestContent_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	type subtest struct {
 		name               string
 		url                string
