@@ -1,0 +1,9 @@
+registerIndexing: true
+defaultLocale: ja
+templatesDir: templates
+contentsDir:
+  - child
+  - raw
+variables:
+  label: root-var
+

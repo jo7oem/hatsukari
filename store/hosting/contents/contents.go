@@ -1,8 +1,10 @@
 package contents
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
@@ -93,13 +95,73 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		render := renderer.NewRenderer(b)
+		templateFS, templateName, err := c.resolveTemplate(resolvedPath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		opts := []renderer.Option{renderer.WithContentsVariables(c.ContentConfig.Variables)}
+		if templateFS != nil && templateName != "" {
+			opts = append(opts, renderer.WithTemplateFS(templateFS, templateName))
+		}
+
+		render := renderer.NewRenderer(b, opts...)
 		render.ServeHTTP(w, r)
 
 		return
 	}
 
 	c.serveFS.ServeHTTP(w, r)
+}
+
+func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
+	ext := path.Ext(resolvedPath)
+	if ext == "" {
+		return nil, "", nil
+	}
+
+	templatesDir := strings.TrimSpace(c.ContentConfig.TemplatesDir)
+	if templatesDir == "" {
+		return nil, "", nil
+	}
+
+	cleanTemplatesDir := path.Clean(templatesDir)
+	if strings.HasPrefix(cleanTemplatesDir, "/") || cleanTemplatesDir == ".." || strings.HasPrefix(cleanTemplatesDir, "../") {
+		return nil, "", fmt.Errorf("invalid templatesDir: %s", templatesDir)
+	}
+
+	templateFS := c.root.FS()
+	if cleanTemplatesDir != "." {
+		subFS, err := fs.Sub(templateFS, cleanTemplatesDir)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, "", nil
+			}
+			return nil, "", err
+		}
+		templateFS = subFS
+	}
+
+	templateName := "template" + ext
+	templateFile, err := templateFS.Open(templateName)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, "", nil
+		}
+		return nil, "", err
+	}
+	defer func() { _ = templateFile.Close() }()
+
+	stat, err := templateFile.Stat()
+	if err != nil {
+		return nil, "", err
+	}
+	if stat.IsDir() {
+		return nil, "", nil
+	}
+
+	return templateFS, templateName, nil
 }
 
 func requestURLToRelPath(mountPath, urlPath string) (string, bool) {
