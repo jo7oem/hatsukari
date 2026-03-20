@@ -15,6 +15,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultContentPriority = 0xFFFF
+
 type Content struct {
 	// 親コンテンツへの参照。ルートコンテンツの場合は nil になる
 	parent *Content
@@ -28,7 +30,18 @@ type Content struct {
 	// このコンテンツとその子コンテンツのルーティングを管理する ServeMux
 	mux http.ServeMux
 	// ルーティング先がない場合にはファイルサーバとしてハンドリングする
-	serveFS http.Handler
+	serveFS  http.Handler
+	children []*Content
+
+	siteVariables map[string]any
+}
+
+type IndexSeed struct {
+	URL           string
+	IndexTitle    map[string]string
+	DefaultLocale string
+	Priority      int
+	LoadOrder     int
 }
 
 func OpenContentDir(fs *os.Root, path string) (*Content, error) {
@@ -101,7 +114,10 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		opts := []renderer.Option{renderer.WithContentsVariables(c.ContentConfig.Variables)}
+		opts := []renderer.Option{
+			renderer.WithContentsVariables(c.ContentConfig.Variables),
+			renderer.WithSiteVariables(c.siteVariables),
+		}
 		if templateFS != nil && templateName != "" {
 			opts = append(opts, renderer.WithTemplateFS(templateFS, templateName))
 		}
@@ -309,14 +325,73 @@ func (c *Content) setupChild() error {
 			return fmt.Errorf("failed to setup content path:%s  error is :%w", path.Join(c.Path(), contentDir), err)
 		}
 
+		c.children = append(c.children, child)
 		c.mux.Handle(child.Path(), child)
 	}
 
 	return nil
 }
 
+func (c *Content) SetSiteVariables(siteVariables map[string]any) {
+	c.siteVariables = siteVariables
+	for _, child := range c.children {
+		child.SetSiteVariables(siteVariables)
+	}
+}
+
+func (c *Content) CollectIndexSeeds() []IndexSeed {
+	seeds := make([]IndexSeed, 0)
+	loadOrder := 0
+	c.collectIndexSeeds(&seeds, &loadOrder)
+	return seeds
+}
+
+func (c *Content) collectIndexSeeds(seeds *[]IndexSeed, loadOrder *int) {
+	if c.ContentConfig.RegisterIndexing {
+		seed := IndexSeed{
+			URL:           normalizeIndexURL(c.Path()),
+			IndexTitle:    copyIndexTitleMap(c.ContentConfig.IndexTitle),
+			DefaultLocale: strings.TrimSpace(c.ContentConfig.DefaultLocale),
+			Priority:      c.priority(),
+			LoadOrder:     *loadOrder,
+		}
+		*loadOrder = *loadOrder + 1
+		*seeds = append(*seeds, seed)
+	}
+
+	for _, child := range c.children {
+		child.collectIndexSeeds(seeds, loadOrder)
+	}
+}
+
+func copyIndexTitleMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+func normalizeIndexURL(rawURL string) string {
+	if rawURL == "/" {
+		return rawURL
+	}
+	return strings.TrimSuffix(rawURL, "/") + "/"
+}
+
+func (c *Content) priority() int {
+	if c.ContentConfig.Priority == nil {
+		return defaultContentPriority
+	}
+	return *c.ContentConfig.Priority
+}
+
 type ContentConfig struct {
 	RegisterIndexing bool              `yaml:"registerIndexing,omitempty"`
+	Priority         *int              `yaml:"priority,omitempty"`
 	TemplatesDir     string            `yaml:"templatesDir,omitempty"`
 	DefaultLocale    string            `yaml:"defaultLocale,omitempty"`
 	IndexTitle       map[string]string `yaml:"indexTitle,omitempty"`

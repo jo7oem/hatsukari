@@ -1,0 +1,10 @@
+registerIndexing: true
+defaultLocale: ja
+indexTitle:
+  ja: "ルート"
+templatesDir: templates
+contentsDir:
+  - c
+  - b
+  - a
+

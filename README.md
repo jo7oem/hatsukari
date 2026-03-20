@@ -19,12 +19,23 @@
 ### テンプレートで使える変数
 - `contents.body`: Markdown 変換後の HTML
 - `contents.variables`: `.content.yaml` の `variables`
+- `site.indexes`: `registerIndexing: true` の Content を優先順位ソートした配列
 - `page.meta`: `goldmark-meta` が返す Front Matter の生値
+
+`site.indexes` の要素構造:
+- `url`: 目次用 URL（末尾 `/` 付き）
+- `title.default`: `indexTitle[defaultLocale]` を優先し、未設定時は `indexTitle.ja`、さらに未設定なら `url`
+- `title.ja`: `indexTitle.ja` を優先し、未設定時は `url`
+
+ソート順:
+- `priority` 昇順（小さい値ほど高優先、負値を許容）
+- `priority` 同値時は読み込み順（`ContentsDir` の定義順を含む）
 
 参照例:
 - `{{.contents.body}}`
 - `{{.page.meta.title}}`
 - `{{index .contents.variables "label"}}`
+- `{{index (index .site.indexes 0) "url"}}`
 
 ## テスト
 ```bash

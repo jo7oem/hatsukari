@@ -38,16 +38,17 @@ title: demo
 hello {{.title}}
 `)
 				templateFS := fstest.MapFS{
-					"template.md": &fstest.MapFile{Data: []byte(`{{template "parts.md" .}}BODY={{.contents.body}}|TITLE={{.page.meta.title}}|VAR={{index .contents.variables "label"}}`)},
+					"template.md": &fstest.MapFile{Data: []byte(`{{template "parts.md" .}}BODY={{.contents.body}}|TITLE={{.page.meta.title}}|VAR={{index .contents.variables "label"}}|SITE={{index (index .site.indexes 0) "url"}}`)},
 					"parts.md":    &fstest.MapFile{Data: []byte(`{{define "parts.md"}}HEAD|{{end}}`)},
 				}
 				return NewRenderer(
 					source,
 					WithTemplateFS(templateFS, "template.md"),
 					WithContentsVariables(map[string]any{"label": "v1"}),
+					WithSiteVariables(map[string]any{"indexes": []map[string]any{{"url": "/"}}}),
 				)
 			},
-			contains: []string{"HEAD|", "BODY=<p>hello demo</p>\n", "TITLE=demo", "VAR=v1"},
+			contains: []string{"HEAD|", "BODY=<p>hello demo</p>\n", "TITLE=demo", "VAR=v1", "SITE=/"},
 		},
 		{
 			name: "TemplateMissingFallback",

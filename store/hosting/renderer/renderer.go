@@ -31,6 +31,7 @@ type Renderer struct {
 	templateFS        fs.FS
 	templateName      string
 	contentsVariables map[string]any
+	siteVariables     map[string]any
 }
 
 func WithTemplateFS(templateFS fs.FS, templateName string) Option {
@@ -43,6 +44,12 @@ func WithTemplateFS(templateFS fs.FS, templateName string) Option {
 func WithContentsVariables(contentsVariables map[string]any) Option {
 	return func(r *Renderer) {
 		r.contentsVariables = contentsVariables
+	}
+}
+
+func WithSiteVariables(siteVariables map[string]any) Option {
+	return func(r *Renderer) {
+		r.siteVariables = siteVariables
 	}
 }
 
@@ -80,6 +87,7 @@ func (r *Renderer) Render() ([]byte, error) {
 			"body":      template.HTML(htmlBuffer.String()),
 			"variables": r.contentsVariables,
 		},
+		"site": r.siteVariables,
 		"page": map[string]any{
 			"meta": meta.Get(context),
 		},
