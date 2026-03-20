@@ -3,7 +3,7 @@ title: サンプル記事
 postedAt: 2025-01-01T00:00:00Z
 visibility: public
 summary: sample 配下での生成確認用記事
-tags: ["intro", "sample"]
+tags: ["intro", "sample", "undefined-tag"]
 revisions:
   - revisedAt: 2025-01-02T09:00:00Z
     summary: タイポ修正

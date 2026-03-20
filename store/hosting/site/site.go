@@ -100,6 +100,8 @@ type Site struct {
 	vars     map[string]any
 	logger   *logging.Logger
 	location *time.Location
+	root     *contents.Content
+	latest   int
 }
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +118,14 @@ func (s *Site) Config() SiteConfig {
 }
 
 func (s *Site) Variables() map[string]any {
-	return s.vars
+	vars := make(map[string]any, len(s.vars)+1)
+	for key, value := range s.vars {
+		vars[key] = value
+	}
+	if s.root != nil {
+		vars["posts"] = s.root.BuildSitePosts(time.Now().In(s.location), s.latest)
+	}
+	return vars
 }
 
 func (s *Site) Setup() error {
@@ -129,16 +138,23 @@ func (s *Site) Setup() error {
 		return err
 	}
 	root.SetLogger(s.logger)
-	now := time.Now().In(s.location)
 	siteLatest := resolveLatestLimit(s.config.Latest)
-	root.SetPostsContext(s.location, siteLatest, now)
+	root.SetPostsContext(s.location, siteLatest)
+	postsContents := root.CollectPostsContents()
+	if len(postsContents) > 1 {
+		paths := make([]string, 0, len(postsContents))
+		for _, content := range postsContents {
+			paths = append(paths, content.Path())
+		}
+		return fmt.Errorf("multiple posts contents found: %s", strings.Join(paths, ", "))
+	}
 
 	siteIndexes := buildSiteIndexes(root.CollectIndexSeeds())
-	sitePosts := root.BuildSitePosts(now, siteLatest)
 	s.vars = map[string]any{
 		"indexes": siteIndexes,
-		"posts":   sitePosts,
 	}
+	s.root = root
+	s.latest = siteLatest
 	root.SetSiteVariables(s.vars)
 
 	mux.Handle("/", root)

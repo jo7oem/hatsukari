@@ -23,6 +23,22 @@
     {{end}}
   </ul>
 </section>
+{{if .page.meta.title}}
+<section>
+  <h2>タグ</h2>
+  <ul>
+    {{range .contents.posts.all}}
+    {{if eq .Title $.page.meta.title}}
+    {{range .Tags}}
+    <li>
+      {{if .URL}}<a href='{{.URL}}'>{{index .Label "default"}}</a>{{else}}{{index .Label "default"}}{{end}}
+    </li>
+    {{end}}
+    {{end}}
+    {{end}}
+  </ul>
+</section>
+{{end}}
 {{.contents.body}}
 </main>
 </body>

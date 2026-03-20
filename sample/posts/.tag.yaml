@@ -1,0 +1,17 @@
+intro:
+  defaultLang: ja
+  label:
+    ja: "導入"
+    en: "Introduction"
+  about:
+    ja: "導入向けの記事"
+    en: "Introductory articles"
+sample:
+  defaultLang: ja
+  label:
+    ja: "サンプル"
+    en: "Sample"
+  about:
+    ja: "サンプル実装の記事"
+    en: "Sample implementation articles"
+

@@ -7,6 +7,7 @@
 - `site.indexes`
 - `site.posts`
 - `contents.posts`
+- `.tag.yaml`
 - `timezone`
 - `visibility`
 - `latest`
@@ -75,6 +76,41 @@
 ### publishAt
 - 未到達なら 404
 - 記事詳細・一覧・タグ一覧すべて同じ判定を使う
+- 判定ずれを避けるため、posts/tag データはリクエストごとに再生成する
+
+## tags
+### 定義ファイル
+- posts Content 直下の `.tag.yaml`
+- `.tag.yaml` がない場合はタグ定義なしとして扱う
+- サイト全体で posts Content は 1 つのみ許可する
+
+### 記事メタの tags
+- `.tag.yaml` の参照キーを使う想定
+- 未知タグは文字列のまま表示し、リンクは付与しない
+- 未知タグの詳細 URL は 404
+
+### 予約語
+- posts では `tags` を予約名として扱う
+
+### 公開データ
+- `site.posts.tags`
+- `site.posts.byTag`
+- `contents.posts.tags`
+- `contents.posts.byTag`
+- `contents.posts.currentTag`
+
+### タグ公開構造
+- `label.default`
+- `label.ja`
+- `about.default`
+- `about.ja`
+
+### URL
+- タグ一覧: `/posts/tags/`
+- タグ詳細: `/posts/tags/<key>/`
+
+### テンプレート
+- タグ一覧/詳細ともに `tags.md`
 
 ## latest
 ### site

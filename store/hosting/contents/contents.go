@@ -40,13 +40,35 @@ type Revision struct {
 	Summary   string
 }
 
+type TagDefinition struct {
+	DefaultLang string            `yaml:"defaultLang,omitempty"`
+	Label       map[string]string `yaml:"label,omitempty"`
+	About       map[string]string `yaml:"about,omitempty"`
+}
+
+type PostTag struct {
+	Key   string
+	URL   string
+	Label map[string]string
+	About map[string]string
+}
+
+type TagFeed struct {
+	Key   string
+	URL   string
+	Count int
+	Label map[string]string
+	About map[string]string
+	Posts []PostEntry
+}
+
 type PostEntry struct {
 	URL        string
 	Title      string
 	PostedAt   time.Time
 	PublishAt  *time.Time
 	Visibility Visibility
-	Tags       []string
+	Tags       []PostTag
 	Summary    string
 	Revisions  []Revision
 }
@@ -100,8 +122,9 @@ type Content struct {
 	// 親コンテンツへの参照。ルートコンテンツの場合は nil になる
 	parent *Content
 	// 親コンテンツからの相対パス。ルートコンテンツの場合は空文字になる
-	relPath string
-	path    func() string
+	relPath  string
+	path     func() string
+	rootPath *Content
 	// このコンテンツのルートディレクトリへの参照
 	root          *os.Root
 	ContentConfig ContentConfig
@@ -114,9 +137,9 @@ type Content struct {
 
 	siteVariables  map[string]any
 	logger         *logging.Logger
-	postsVariables map[string]any
 	timezone       *time.Location
 	siteLatest     int
+	tagDefinitions map[string]TagDefinition
 }
 
 type IndexSeed struct {
@@ -140,6 +163,11 @@ func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error)
 		relPath: path,
 		root:    root,
 		serveFS: http.FileServerFS(root.FS()),
+	}
+	if parent == nil {
+		c.rootPath = c
+	} else {
+		c.rootPath = parent.rootPath
 	}
 
 	c.path = sync.OnceValue(c.calcPath)
@@ -169,6 +197,18 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok || isHiddenOrUnsafeRelPath(relPath) {
 		http.NotFound(w, r)
 		return
+	}
+
+	if c.isPostsContent() {
+		handled, err := c.tryServeTagsPage(w, r, relPath)
+		if err != nil {
+			c.logError("failed to serve tags page", err, slog.String("path", relPath))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if handled {
+			return
+		}
 	}
 
 	resolvedPath, ok := c.resolveContentPathByPriority(relPath)
@@ -221,7 +261,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 
 		opts := []renderer.Option{
 			renderer.WithContentsVariables(c.ContentConfig.Variables),
-			renderer.WithContentsPosts(c.postsVariables),
+			renderer.WithContentsPosts(c.requestContentsPosts()),
 			renderer.WithSiteVariables(c.requestSiteVariables(r)),
 			renderer.WithLogger(c.logger),
 		}
@@ -238,9 +278,67 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 	c.serveFS.ServeHTTP(w, r)
 }
 
+func (c *Content) tryServeTagsPage(w http.ResponseWriter, r *http.Request, relPath string) (bool, error) {
+	if relPath != "tags" && !strings.HasPrefix(relPath, "tags/") {
+		return false, nil
+	}
+
+	tagKey := strings.TrimPrefix(relPath, "tags/")
+	if relPath == "tags" || tagKey == "" {
+		return true, c.renderTagsPage(w, r, "")
+	}
+	if strings.Contains(tagKey, "/") {
+		http.NotFound(w, r)
+		return true, nil
+	}
+
+	return true, c.renderTagsPage(w, r, tagKey)
+}
+
+func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey string) error {
+	postsData := c.requestContentsPosts()
+	byTag, _ := postsData["byTag"].(map[string]TagFeed)
+	if tagKey != "" {
+		feed, ok := byTag[tagKey]
+		if !ok || len(feed.Posts) == 0 {
+			http.NotFound(w, r)
+			return nil
+		}
+		postsData["currentTag"] = feed
+	} else {
+		postsData["currentTag"] = TagFeed{}
+	}
+
+	templateFS, templateName, err := c.resolveNamedTemplate("tags.md")
+	if err != nil {
+		return err
+	}
+	if templateFS == nil || templateName == "" {
+		return fmt.Errorf("tags template not found")
+	}
+
+	render := renderer.NewRenderer(
+		[]byte(""),
+		renderer.WithTemplateFS(templateFS, templateName),
+		renderer.WithContentsVariables(c.ContentConfig.Variables),
+		renderer.WithContentsPosts(postsData),
+		renderer.WithSiteVariables(c.requestSiteVariables(r)),
+		renderer.WithLogger(c.logger),
+	)
+	render.ServeHTTP(w, r)
+	return nil
+}
+
 func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
 	ext := path.Ext(resolvedPath)
 	if ext == "" {
+		return nil, "", nil
+	}
+	return c.resolveNamedTemplate("template" + ext)
+}
+
+func (c *Content) resolveNamedTemplate(templateName string) (fs.FS, string, error) {
+	if strings.TrimSpace(templateName) == "" {
 		return nil, "", nil
 	}
 
@@ -266,7 +364,6 @@ func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
 		templateFS = subFS
 	}
 
-	templateName := "template" + ext
 	templateFile, err := templateFS.Open(templateName)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -417,6 +514,17 @@ func (c *Content) setup() error {
 		return fmt.Errorf("parse error in content config: %w", err)
 	}
 
+	if c.isPostsContent() {
+		definitions, err := c.loadTagDefinitions()
+		if err != nil {
+			return err
+		}
+		c.tagDefinitions = definitions
+		if err := c.validatePostsReservedNames(); err != nil {
+			return err
+		}
+	}
+
 	c.mux.HandleFunc(c.Path(), c.customRoutingHandler)
 	if err := c.setupChild(); err != nil {
 		return err
@@ -439,6 +547,79 @@ func (c *Content) setupChild() error {
 	return nil
 }
 
+func (c *Content) loadTagDefinitions() (map[string]TagDefinition, error) {
+	const tagFileYAML = ".tag.yaml"
+	const tagFileYML = ".tag.yml"
+
+	f, err := c.root.Open(tagFileYAML)
+	if os.IsNotExist(err) {
+		f, err = c.root.Open(tagFileYML)
+	}
+	if os.IsNotExist(err) {
+		return map[string]TagDefinition{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to open tag definitions: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	definitions := make(map[string]TagDefinition)
+	if err := yaml.NewDecoder(f).Decode(&definitions); err != nil {
+		return nil, fmt.Errorf("parse error in tag definitions: %w", err)
+	}
+
+	for key, definition := range definitions {
+		if key == "" {
+			return nil, fmt.Errorf("tag key must not be empty")
+		}
+		if key == "tags" {
+			return nil, fmt.Errorf("reserved tag key: %s", key)
+		}
+		definitions[key] = normalizeTagDefinition(key, definition)
+	}
+
+	return definitions, nil
+}
+
+func normalizeTagDefinition(key string, definition TagDefinition) TagDefinition {
+	defaultLang := strings.TrimSpace(definition.DefaultLang)
+	if defaultLang == "" {
+		defaultLang = "ja"
+	}
+	return TagDefinition{
+		DefaultLang: defaultLang,
+		Label:       normalizeLocalizedMap(definition.Label),
+		About:       normalizeLocalizedMap(definition.About),
+	}
+}
+
+func normalizeLocalizedMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return map[string]string{}
+	}
+	dst := make(map[string]string, len(src))
+	for key, value := range src {
+		trimmedKey := strings.TrimSpace(strings.ToLower(key))
+		if trimmedKey == "" {
+			continue
+		}
+		dst[trimmedKey] = strings.TrimSpace(value)
+	}
+	return dst
+}
+
+func (c *Content) validatePostsReservedNames() error {
+	for _, reserved := range []string{"tags", "tags.md", "tags.html"} {
+		f, err := c.root.Open(reserved)
+		if err != nil {
+			continue
+		}
+		_ = f.Close()
+		return fmt.Errorf("reserved posts path exists: %s", reserved)
+	}
+	return nil
+}
+
 func (c *Content) SetSiteVariables(siteVariables map[string]any) {
 	c.siteVariables = siteVariables
 	for _, child := range c.children {
@@ -446,23 +627,25 @@ func (c *Content) SetSiteVariables(siteVariables map[string]any) {
 	}
 }
 
-func (c *Content) SetPostsContext(location *time.Location, siteLatest int, now time.Time) {
+func (c *Content) SetPostsContext(location *time.Location, siteLatest int) {
 	if location == nil {
 		location = time.UTC
 	}
 	c.timezone = location
 	c.siteLatest = normalizeLatest(siteLatest)
-	c.postsVariables = c.buildPostsVariables(now)
 	for _, child := range c.children {
-		child.SetPostsContext(location, siteLatest, now)
+		child.SetPostsContext(location, siteLatest)
 	}
 }
 
 func (c *Content) BuildSitePosts(now time.Time, siteLatest int) map[string]any {
-	posts := c.collectSubtreePosts(now)
+	listPosts := c.collectSubtreePosts(now, PostEntry.IsListVisible)
+	tagPosts := c.collectSubtreePosts(now, PostEntry.IsTagVisible)
 	return map[string]any{
-		"all":    posts,
-		"latest": limitPosts(posts, normalizeLatest(siteLatest)),
+		"all":    listPosts,
+		"latest": limitPosts(listPosts, normalizeLatest(siteLatest)),
+		"tags":   buildTagList(tagPosts),
+		"byTag":  buildTagMap(tagPosts),
 	}
 }
 
@@ -489,6 +672,9 @@ func (c *Content) requestSiteVariables(r *http.Request) map[string]any {
 	for k, v := range c.siteVariables {
 		localized[k] = v
 	}
+	if c.rootPath != nil {
+		localized["posts"] = c.rootPath.BuildSitePosts(c.now(), c.siteLatest)
+	}
 
 	lang := strings.TrimSpace(r.URL.Query().Get("lang"))
 	localized["currentLocale"] = lang
@@ -496,21 +682,28 @@ func (c *Content) requestSiteVariables(r *http.Request) map[string]any {
 	return localized
 }
 
+func (c *Content) requestContentsPosts() map[string]any {
+	return c.buildPostsVariables(c.now())
+}
+
 func (c *Content) buildPostsVariables(now time.Time) map[string]any {
-	posts := c.collectSubtreePosts(now)
+	listPosts := c.collectSubtreePosts(now, PostEntry.IsListVisible)
+	tagPosts := c.collectSubtreePosts(now, PostEntry.IsTagVisible)
 	return map[string]any{
-		"all":    posts,
-		"latest": limitPosts(posts, c.effectiveLatest()),
+		"all":    listPosts,
+		"latest": limitPosts(listPosts, c.effectiveLatest()),
+		"tags":   buildTagList(tagPosts),
+		"byTag":  buildTagMap(tagPosts),
 	}
 }
 
-func (c *Content) collectSubtreePosts(now time.Time) []PostEntry {
+func (c *Content) collectSubtreePosts(now time.Time, allow func(PostEntry, time.Time) bool) []PostEntry {
 	posts := make([]PostEntry, 0)
 	if c.isPostsContent() {
-		posts = append(posts, c.collectOwnPosts(now)...)
+		posts = append(posts, c.collectOwnPosts(now, allow)...)
 	}
 	for _, child := range c.children {
-		posts = append(posts, child.collectSubtreePosts(now)...)
+		posts = append(posts, child.collectSubtreePosts(now, allow)...)
 	}
 
 	sort.SliceStable(posts, func(i, j int) bool {
@@ -523,7 +716,7 @@ func (c *Content) collectSubtreePosts(now time.Time) []PostEntry {
 	return posts
 }
 
-func (c *Content) collectOwnPosts(now time.Time) []PostEntry {
+func (c *Content) collectOwnPosts(now time.Time, allow func(PostEntry, time.Time) bool) []PostEntry {
 	posts := make([]PostEntry, 0)
 	err := fs.WalkDir(c.root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -547,7 +740,7 @@ func (c *Content) collectOwnPosts(now time.Time) []PostEntry {
 		if !ok {
 			return nil
 		}
-		if entry.IsListVisible(now) {
+		if allow(entry, now) {
 			posts = append(posts, entry)
 		}
 		return nil
@@ -606,7 +799,7 @@ func (c *Content) postEntryFromMeta(metaData map[string]any, resolvedPath string
 		PostedAt:   postedAt,
 		Visibility: parseVisibility(metaData["visibility"]),
 		Summary:    strings.TrimSpace(fmt.Sprint(metaData["summary"])),
-		Tags:       parseTags(metaData["tags"]),
+		Tags:       c.resolvePostTags(parseTagKeys(metaData["tags"])),
 		Revisions:  parseRevisions(metaData["revisions"], c.timezone),
 	}
 	if entry.Summary == "<nil>" {
@@ -675,10 +868,10 @@ func parseVisibility(value any) Visibility {
 	}
 }
 
-func parseTags(value any) []string {
+func parseTagKeys(value any) []string {
 	switch v := value.(type) {
 	case []string:
-		return v
+		return uniqueTags(v)
 	case []any:
 		tags := make([]string, 0, len(v))
 		for _, item := range v {
@@ -688,10 +881,122 @@ func parseTags(value any) []string {
 			}
 			tags = append(tags, t)
 		}
-		return tags
+		return uniqueTags(tags)
 	default:
 		return nil
 	}
+}
+
+func uniqueTags(tags []string) []string {
+	seen := make(map[string]struct{}, len(tags))
+	unique := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		unique = append(unique, trimmed)
+	}
+	return unique
+}
+
+func (c *Content) resolvePostTags(tagKeys []string) []PostTag {
+	resolved := make([]PostTag, 0, len(tagKeys))
+	for _, key := range tagKeys {
+		definition, ok := c.tagDefinitions[key]
+		if !ok {
+			resolved = append(resolved, PostTag{
+				Key:   key,
+				Label: map[string]string{"default": key, "ja": key},
+				About: map[string]string{"default": "", "ja": ""},
+			})
+			continue
+		}
+		resolved = append(resolved, PostTag{
+			Key:   key,
+			URL:   normalizeIndexURL(path.Join(c.Path(), "tags", key)),
+			Label: buildLocalizedPublicValue(definition.DefaultLang, definition.Label, key),
+			About: buildLocalizedPublicValue(definition.DefaultLang, definition.About, ""),
+		})
+	}
+	return resolved
+}
+
+func buildLocalizedPublicValue(defaultLang string, values map[string]string, fallback string) map[string]string {
+	lang := strings.TrimSpace(strings.ToLower(defaultLang))
+	if lang == "" {
+		lang = "ja"
+	}
+	defaultValue := strings.TrimSpace(values[lang])
+	if defaultValue == "" {
+		defaultValue = strings.TrimSpace(values["ja"])
+	}
+	if defaultValue == "" {
+		defaultValue = fallback
+	}
+	jaValue := strings.TrimSpace(values["ja"])
+	if jaValue == "" {
+		jaValue = defaultValue
+	}
+	return map[string]string{"default": defaultValue, "ja": jaValue}
+}
+
+func buildTagList(posts []PostEntry) []TagFeed {
+	feeds := buildTagFeeds(posts)
+	list := make([]TagFeed, 0, len(feeds))
+	for _, feed := range feeds {
+		list = append(list, feed)
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].Count != list[j].Count {
+			return list[i].Count > list[j].Count
+		}
+		return list[i].Key < list[j].Key
+	})
+	return list
+}
+
+func buildTagMap(posts []PostEntry) map[string]TagFeed {
+	feeds := buildTagFeeds(posts)
+	byTag := make(map[string]TagFeed, len(feeds))
+	for key, feed := range feeds {
+		if feed.URL == "" {
+			continue
+		}
+		byTag[key] = feed
+	}
+	return byTag
+}
+
+func buildTagFeeds(posts []PostEntry) map[string]TagFeed {
+	feeds := make(map[string]TagFeed)
+	for _, post := range posts {
+		for _, tag := range post.Tags {
+			feed, ok := feeds[tag.Key]
+			if !ok {
+				feed = TagFeed{Key: tag.Key, URL: tag.URL, Label: copyStringMap(tag.Label), About: copyStringMap(tag.About)}
+			}
+			feed.Count++
+			feed.Posts = append(feed.Posts, post)
+			feeds[tag.Key] = feed
+		}
+	}
+	return feeds
+}
+
+func copyStringMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return map[string]string{}
+	}
+	dst := make(map[string]string, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }
 
 func parseRevisions(value any, location *time.Location) []Revision {
@@ -765,6 +1070,21 @@ func (c *Content) CollectIndexSeeds() []IndexSeed {
 	loadOrder := 0
 	c.collectIndexSeeds(&seeds, &loadOrder)
 	return seeds
+}
+
+func (c *Content) CollectPostsContents() []*Content {
+	collected := make([]*Content, 0)
+	c.collectPostsContents(&collected)
+	return collected
+}
+
+func (c *Content) collectPostsContents(collected *[]*Content) {
+	if c.isPostsContent() {
+		*collected = append(*collected, c)
+	}
+	for _, child := range c.children {
+		child.collectPostsContents(collected)
+	}
 }
 
 func (c *Content) collectIndexSeeds(seeds *[]IndexSeed, loadOrder *int) {

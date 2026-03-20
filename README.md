@@ -28,11 +28,16 @@
 - `site.posts`: サイト全体の記事情報
   - `site.posts.all`: サイト全体の一覧表示対象記事
   - `site.posts.latest`: サイト全体の最新記事
+  - `site.posts.tags`: サイト全体のタグ一覧
+  - `site.posts.byTag`: タグキーごとの記事一覧
 
 ### posts Content 配下
 - `contents.posts`: `contentType: posts` の Content で利用できる記事情報
   - `contents.posts.all`: その Content 配下の一覧表示対象記事
   - `contents.posts.latest`: その Content 配下の最新記事
+  - `contents.posts.tags`: その Content 配下のタグ一覧
+  - `contents.posts.byTag`: その Content 配下のタグごとの記事一覧
+  - `contents.posts.currentTag`: タグ詳細ページで表示中のタグ情報
 
 ### `site.indexes` の構造
 - `url`: 目次用 URL（末尾 `/` 付き）
@@ -55,6 +60,7 @@
 - `{{index (index .site.indexes 0) "url"}}`
 - `{{range .site.posts.latest}}{{.Title}}{{end}}`
 - `{{range .contents.posts.latest}}{{.Title}}{{end}}`
+- `{{range .contents.posts.tags}}{{index .Label "default"}}{{end}}`
 
 ## Site 設定
 
@@ -71,10 +77,12 @@
 
 ## posts 仕様
 - `.content.yaml` に `contentType: posts` を指定した Content を記事収集対象にします。
+- サイト全体で `contentType: posts` は 1 つだけ許可します。複数ある場合は起動エラーです。
 - `index.md` は記事収集対象外です（一覧ページ用途）。
 - Front Matter がない `.md` は記事として扱いません。
 - `contentType: posts` 配下では `.md` への直接アクセスは常に `404` を返します。
 - 拡張子なし URL（例: `/posts/sample-post`）で記事へアクセスします。
+- `site.posts` / `contents.posts` は `publishAt` と `visibility` を考慮してリクエストごとに再生成します。
 
 ### 記事メタ
 - 必須
@@ -106,9 +114,43 @@
 - `.site.yml` の `latest` がサイト全体 `site.posts.latest` の上限です。
 - `contentType: posts` の `.content.yaml` で `latest` を指定すると、その Content 配下表示（`contents.posts.latest`）のみ上書きします。
 
+## tags 仕様
+- posts Content 直下の `.tag.yaml` がタグ定義ファイルです。
+- `.tag.yaml` が存在しない場合は、タグ定義なしとして扱います。
+- 記事メタ `tags` は `.tag.yaml` の参照キーを想定します。
+- 未知タグはタグ名そのままで返し、リンクを持たせません。
+- 未知タグの詳細 URL は `404` を返します。
+- `tags` は posts の予約名です。
+
+### `.tag.yaml`
+```yaml
+sample:
+  defaultLang: ja
+  label:
+    ja: "サンプル"
+    en: "Sample"
+  about:
+    ja: "サンプル記事のタグ"
+    en: "Sample articles"
+```
+
+### タグ公開データ
+- `label.default`
+- `label.ja`
+- `about.default`
+- `about.ja`
+
+### タグ URL
+- タグ一覧: `/posts/tags/`
+- タグ詳細: `/posts/tags/<tag-key>/`
+
+### タグテンプレート
+- タグ一覧/タグ詳細のテンプレート名は `tags.md` です。
+- `templatesDir` 配下に配置します。
+
 ## テスト
 ```bash
-go test ./store/hosting/renderer ./store/hosting/contents -count=1
+go test ./store/hosting/site ./store/hosting/contents ./store/hosting/renderer ./logging -count=1
 ```
 
 ## 機能

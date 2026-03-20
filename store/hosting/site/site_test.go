@@ -276,3 +276,170 @@ func TestSite_Posts(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenSiteDir_MultiplePostsContents(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n  - diary\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "posts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "diary", ".content.yaml"), "contentType: posts\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "diary", "index.md"), "diary\n")
+
+	_, err := OpenSiteDir(siteDir)
+	if err == nil {
+		t.Fatal("OpenSiteDir() error = nil, want multiple posts contents error")
+	}
+	for _, fragment := range []string{"multiple posts contents found", "/posts/", "/diary/"} {
+		if !strings.Contains(err.Error(), fragment) {
+			t.Fatalf("OpenSiteDir() error = %v, want contains %q", err, fragment)
+		}
+	}
+}
+
+func TestSite_PostTags(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nlatest: 3\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\nlatest: 2\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".tag.yaml"), "known:\n  defaultLang: ja\n  label:\n    ja: \"既知タグ\"\n    en: \"Known Tag\"\n  about:\n    ja: \"既知タグの説明\"\n    en: \"Known tag description\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{if .page.meta.title}}TITLE={{.page.meta.title}}|{{range .contents.posts.byTag}}X{{end}}{{range .contents.posts.all}}{{if eq .Title $.page.meta.title}}{{range .Tags}}{{if .URL}}KNOWN_LINK={{.URL}}|KNOWN_LABEL={{index .Label \"default\"}}|{{else}}UNKNOWN_LABEL={{index .Label \"default\"}}|{{end}}{{end}}{{end}}{{end}}{{end}}BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "{{if .contents.posts.currentTag.Key}}DETAIL={{.contents.posts.currentTag.Key}}|COUNT={{.contents.posts.currentTag.Count}}|ABOUT={{index .contents.posts.currentTag.About \"default\"}}|{{range .contents.posts.currentTag.Posts}}{{.Title}};{{end}}{{else}}LIST={{len .contents.posts.tags}}|{{range .contents.posts.tags}}{{.Key}}={{index .Label \"default\"}}@{{.Count}}@{{.URL}};{{end}}{{end}}\n")
+
+	posts := map[string]string{
+		"public.md":   "---\ntitle: Public\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\nsummary: public\ntags: [\"known\", \"unknown\"]\n---\npublic\n",
+		"unlisted.md": "---\ntitle: Unlisted\npostedAt: 2026-03-02T00:00:00Z\nvisibility: unlisted\nsummary: unlisted\ntags: [\"known\"]\n---\nunlisted\n",
+		"direct.md":   "---\ntitle: Direct\npostedAt: 2026-03-03T00:00:00Z\nvisibility: directOnly\nsummary: direct\ntags: [\"known\"]\n---\ndirect\n",
+		"future.md":   "---\ntitle: Future\npostedAt: 2026-03-04T00:00:00Z\npublishAt: 2999-01-01T00:00:00Z\nvisibility: public\nsummary: future\ntags: [\"known\"]\n---\nfuture\n",
+	}
+	for name, body := range posts {
+		writeTestFile(t, filepath.Join(siteDir, "content", "posts", name), body)
+	}
+
+	s, err := OpenSiteDir(siteDir)
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/posts/public")
+	if err != nil {
+		t.Fatalf("GET /posts/public error = %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	bodyStr := string(body)
+	for _, fragment := range []string{"KNOWN_LINK=/posts/tags/known/", "KNOWN_LABEL=既知タグ", "UNKNOWN_LABEL=unknown"} {
+		if !strings.Contains(bodyStr, fragment) {
+			t.Fatalf("GET /posts/public body does not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+
+	resp, err = server.Client().Get(server.URL + "/posts/tags/")
+	if err != nil {
+		t.Fatalf("GET /posts/tags/ error = %v", err)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	bodyStr = string(body)
+	for _, fragment := range []string{"LIST=2", "known=既知タグ@2@/posts/tags/known/", "unknown=unknown@1@"} {
+		if !strings.Contains(bodyStr, fragment) {
+			t.Fatalf("GET /posts/tags/ body does not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+
+	resp, err = server.Client().Get(server.URL + "/posts/tags/known")
+	if err != nil {
+		t.Fatalf("GET /posts/tags/known error = %v", err)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	bodyStr = string(body)
+	for _, fragment := range []string{"DETAIL=known", "COUNT=2", "ABOUT=既知タグの説明", "Public;", "Unlisted;"} {
+		if !strings.Contains(bodyStr, fragment) {
+			t.Fatalf("GET /posts/tags/known body does not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+	for _, fragment := range []string{"Direct;", "Future;"} {
+		if strings.Contains(bodyStr, fragment) {
+			t.Fatalf("GET /posts/tags/known body should not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+
+	for _, pathName := range []string{"/posts/tags/unknown", "/posts/tags/none"} {
+		resp, err := server.Client().Get(server.URL + pathName)
+		if err != nil {
+			t.Fatalf("GET %s error = %v", pathName, err)
+		}
+		_ = resp.Body.Close()
+		if got, want := resp.StatusCode, http.StatusNotFound; got != want {
+			t.Fatalf("GET %s status = %d, want %d", pathName, got, want)
+		}
+	}
+}
+
+func TestSite_PostTagsWithoutDefinitionFile(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{range .contents.posts.all}}{{range .Tags}}{{if .URL}}LINK={{.URL}}{{else}}TEXT={{index .Label \"default\"}}{{end}}{{end}}{{end}}")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "{{range .contents.posts.tags}}{{.Key}};{{end}}")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "only.md"), "---\ntitle: Only\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\nsummary: only\ntags: [\"raw-tag\"]\n---\nonly\n")
+
+	s, err := OpenSiteDir(siteDir)
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/posts/only")
+	if err != nil {
+		t.Fatalf("GET /posts/only error = %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "TEXT=raw-tag") {
+		t.Fatalf("GET /posts/only body=%s, want raw tag text", bodyStr)
+	}
+	if strings.Contains(bodyStr, "LINK=") {
+		t.Fatalf("GET /posts/only body should not contain link\nbody=%s", bodyStr)
+	}
+
+	resp, err = server.Client().Get(server.URL + "/posts/tags/raw-tag")
+	if err != nil {
+		t.Fatalf("GET /posts/tags/raw-tag error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if got, want := resp.StatusCode, http.StatusNotFound; got != want {
+		t.Fatalf("GET /posts/tags/raw-tag status = %d, want %d", got, want)
+	}
+}
+
+func writeTestFile(t *testing.T, filePath, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {
+		t.Fatalf("failed to create dir for %s: %v", filePath, err)
+	}
+	if err := os.WriteFile(filePath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write %s: %v", filePath, err)
+	}
+}
