@@ -6,13 +6,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
-	"gopkg.in/yaml.v3"
 )
 
 type SiteConfig struct {
@@ -22,30 +20,6 @@ type SiteConfig struct {
 	TemplatesDir   string   `yaml:"templatesDir"`
 	RootContentDir string   `yaml:"rootContentDir"`
 	ContentsDir    []string `yaml:"contentsDir,omitempty"`
-}
-
-func openSiteConfig(fs *os.Root) (*SiteConfig, error) {
-	const confNameYaml = ".site.yaml"
-	const confNameYml = ".site.yml"
-
-	f, err := fs.Open(confNameYaml)
-	if os.IsNotExist(err) {
-		f, err = fs.Open(confNameYml)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() { _ = f.Close() }()
-
-	var config SiteConfig
-	err = yaml.NewDecoder(f).Decode(&config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config, nil
 }
 
 func OpenSiteDir(path string) (*Site, error) {
@@ -73,7 +47,6 @@ func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 	}
 
 	site := &Site{
-		Title:    "My Site",
 		fs:       root,
 		config:   *conf,
 		mux:      http.NewServeMux(),
@@ -93,7 +66,6 @@ func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 }
 
 type Site struct {
-	Title    string
 	config   SiteConfig
 	fs       *os.Root
 	mux      *http.ServeMux
@@ -105,7 +77,6 @@ type Site struct {
 }
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path)
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -160,72 +131,4 @@ func (s *Site) Setup() error {
 	mux.Handle("/", root)
 	s.mux = mux
 	return nil
-}
-
-func resolveTimezone(raw string) (*time.Location, error) {
-	timezone := strings.TrimSpace(raw)
-	if timezone == "" {
-		return time.UTC, nil
-	}
-
-	location, err := time.LoadLocation(timezone)
-	if err != nil {
-		return nil, fmt.Errorf("invalid timezone %q: %w", timezone, err)
-	}
-
-	return location, nil
-}
-
-func buildSiteIndexes(seeds []contents.IndexSeed) []map[string]any {
-	sort.SliceStable(seeds, func(i, j int) bool {
-		if seeds[i].Priority != seeds[j].Priority {
-			return seeds[i].Priority < seeds[j].Priority
-		}
-		return seeds[i].LoadOrder < seeds[j].LoadOrder
-	})
-
-	indexes := make([]map[string]any, 0, len(seeds))
-	for _, seed := range seeds {
-		jaTitle := resolveTitle(seed, "ja")
-		if jaTitle == "" {
-			jaTitle = seed.URL
-		}
-
-		defaultLocale := strings.TrimSpace(seed.DefaultLocale)
-		if defaultLocale == "" {
-			defaultLocale = "ja"
-		}
-
-		defaultTitle := resolveTitle(seed, defaultLocale)
-		if defaultTitle == "" {
-			defaultTitle = jaTitle
-		}
-		if defaultTitle == "" {
-			defaultTitle = seed.URL
-		}
-
-		indexes = append(indexes, map[string]any{
-			"url": seed.URL,
-			"title": map[string]string{
-				"default": defaultTitle,
-				"ja":      jaTitle,
-			},
-		})
-	}
-
-	return indexes
-}
-
-func resolveTitle(seed contents.IndexSeed, locale string) string {
-	if len(seed.IndexTitle) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(seed.IndexTitle[locale])
-}
-
-func resolveLatestLimit(v *int) int {
-	if v == nil || *v <= 0 {
-		return 10
-	}
-	return *v
 }

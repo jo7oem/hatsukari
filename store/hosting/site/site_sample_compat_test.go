@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestSite_SampleEndpointsCompatibility(t *testing.T) {
+func TestSite_ServeHTTP_SampleCompatibility(t *testing.T) {
 	t.Parallel()
 
 	samplePath := sampleDirForTest(t)
@@ -24,6 +24,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	tests := []struct {
+		rq          string
 		name        string
 		urlPath     string
 		wantStatus  int
@@ -31,6 +32,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 		notContains []string
 	}{
 		{
+			rq:         "RQ-001",
 			name:       "TopPage",
 			urlPath:    "/",
 			wantStatus: http.StatusOK,
@@ -43,6 +45,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-405",
 			name:       "TopPageWithLocale",
 			urlPath:    "/?lang=en",
 			wantStatus: http.StatusOK,
@@ -52,6 +55,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-001",
 			name:       "AboutPage",
 			urlPath:    "/about/",
 			wantStatus: http.StatusOK,
@@ -61,6 +65,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-306",
 			name:       "PostsIndex",
 			urlPath:    "/posts/",
 			wantStatus: http.StatusOK,
@@ -72,6 +77,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-305",
 			name:       "PostDetail",
 			urlPath:    "/posts/sample-post",
 			wantStatus: http.StatusOK,
@@ -85,17 +91,19 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-308",
 			name:       "TagsIndex",
 			urlPath:    "/posts/tags/",
 			wantStatus: http.StatusOK,
 			contains: []string{
 				"<h1>タグ一覧</h1>",
 				"<a href='/posts/tags/intro/'>導入</a> (1)",
-				"<a href='/posts/tags/sample/'>サンプル</a> (1)",
-				"undefined-tag (1)",
+				"<a href='/posts/tags/sample/'>サンプル</a> (2)",
+				"undefined-tag (2)",
 			},
 		},
 		{
+			rq:         "RQ-308",
 			name:       "TagDetailIntro",
 			urlPath:    "/posts/tags/intro",
 			wantStatus: http.StatusOK,
@@ -106,6 +114,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:         "RQ-308",
 			name:       "TagDetailSample",
 			urlPath:    "/posts/tags/sample",
 			wantStatus: http.StatusOK,
@@ -116,6 +125,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 			},
 		},
 		{
+			rq:          "RQ-308",
 			name:        "TagDetailUnknown",
 			urlPath:     "/posts/tags/undefined-tag",
 			wantStatus:  http.StatusNotFound,
@@ -126,7 +136,7 @@ func TestSite_SampleEndpointsCompatibility(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.rq+"/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			resp, err := server.Client().Get(server.URL + tt.urlPath)

@@ -126,8 +126,8 @@ type Content struct {
 	path     func() string
 	rootPath *Content
 	// このコンテンツのルートディレクトリへの参照
-	root          *os.Root
-	ContentConfig ContentConfig
+	root   *os.Root
+	config contentConfig
 
 	// このコンテンツとその子コンテンツのルーティングを管理する ServeMux
 	mux http.ServeMux
@@ -140,14 +140,6 @@ type Content struct {
 	timezone       *time.Location
 	siteLatest     int
 	tagDefinitions map[string]TagDefinition
-}
-
-type IndexSeed struct {
-	URL           string
-	IndexTitle    map[string]string
-	DefaultLocale string
-	Priority      int
-	LoadOrder     int
 }
 
 func OpenContentDir(fs *os.Root, path string) (*Content, error) {
@@ -260,7 +252,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		opts := []renderer.Option{
-			renderer.WithContentsVariables(c.ContentConfig.Variables),
+			renderer.WithContentsVariables(c.config.Variables),
 			renderer.WithContentsPosts(c.requestContentsPosts()),
 			renderer.WithSiteVariables(c.requestSiteVariables(r)),
 			renderer.WithLogger(c.logger),
@@ -320,7 +312,7 @@ func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey 
 	render := renderer.NewRenderer(
 		[]byte(""),
 		renderer.WithTemplateFS(templateFS, templateName),
-		renderer.WithContentsVariables(c.ContentConfig.Variables),
+		renderer.WithContentsVariables(c.config.Variables),
 		renderer.WithContentsPosts(postsData),
 		renderer.WithSiteVariables(c.requestSiteVariables(r)),
 		renderer.WithLogger(c.logger),
@@ -342,7 +334,7 @@ func (c *Content) resolveNamedTemplate(templateName string) (fs.FS, string, erro
 		return nil, "", nil
 	}
 
-	templatesDir := strings.TrimSpace(c.ContentConfig.TemplatesDir)
+	templatesDir := strings.TrimSpace(c.config.TemplatesDir)
 	if templatesDir == "" {
 		return nil, "", nil
 	}
@@ -384,116 +376,6 @@ func (c *Content) resolveNamedTemplate(templateName string) (fs.FS, string, erro
 	return templateFS, templateName, nil
 }
 
-func requestURLToRelPath(mountPath, urlPath string) (string, bool) {
-	cleanMount := path.Clean("/" + strings.TrimPrefix(mountPath, "/"))
-	if cleanMount != "/" && strings.HasSuffix(mountPath, "/") {
-		cleanMount += "/"
-	}
-
-	cleanURL := path.Clean("/" + strings.TrimPrefix(urlPath, "/"))
-
-	if cleanMount == "/" {
-		if cleanURL == "/" {
-			return "index", true
-		}
-		return strings.TrimPrefix(cleanURL, "/"), true
-	}
-
-	if cleanURL == strings.TrimSuffix(cleanMount, "/") {
-		return "index", true
-	}
-	if !strings.HasPrefix(cleanURL, cleanMount) {
-		return "", false
-	}
-
-	rel := strings.TrimPrefix(cleanURL, cleanMount)
-	if rel == "" {
-		return "index", true
-	}
-	return rel, true
-}
-
-func isHiddenOrUnsafeRelPath(relPath string) bool {
-	if relPath == "" || relPath == "." {
-		return true
-	}
-	if relPath == ".." || strings.HasPrefix(relPath, "../") {
-		return true
-	}
-	for seg := range strings.SplitSeq(relPath, "/") {
-		if seg == "" {
-			continue
-		}
-		if seg[0] == '.' {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Content) resolveContentPathByPriority(relPath string) (string, bool) {
-	if path.Ext(relPath) != "" {
-		return relPath, true
-	}
-
-	candidate, ok := c.resolveNoExtRelPath(relPath)
-	if !ok {
-		return "", false
-	}
-
-	// http.FileServerFS() のディレクトリハンドリング挙動に合わせるため、index.html を URL 末尾の '/' として扱う。
-	candidate, _ = strings.CutSuffix(candidate, "index.html")
-	return candidate, true
-}
-
-func (c *Content) resolveNoExtRelPath(relPath string) (string, bool) {
-	base := relPath
-	for {
-		resolved, isDir, ok := c.openFirstExistingCandidate(base)
-		if !ok {
-			return "", false
-		}
-		if !isDir {
-			return resolved, true
-		}
-		base = path.Join(base, "index")
-	}
-}
-
-func (c *Content) openFirstExistingCandidate(relPath string) (resolved string, isDir bool, ok bool) {
-	for _, ext := range []string{"", ".html", ".md"} {
-		p := relPath + ext
-		f, err := c.root.Open(p)
-		if err != nil {
-			continue
-		}
-
-		if ext == "" {
-			stat, statErr := f.Stat()
-			_ = f.Close()
-			if statErr == nil && stat.IsDir() {
-				return relPath, true, true
-			}
-			return relPath, false, true
-		}
-
-		_ = f.Close()
-		return p, false, true
-	}
-	return "", false, false
-}
-
-func (c *Content) Path() string {
-	return c.path()
-}
-
-func (c *Content) calcPath() string {
-	if c.parent == nil {
-		return "/"
-	}
-	return path.Join(c.parent.Path(), c.relPath) + "/"
-}
-
 func (c *Content) setup() error {
 	confFile, err := c.root.Open(".content.yaml")
 
@@ -510,7 +392,7 @@ func (c *Content) setup() error {
 
 	defer func() { _ = confFile.Close() }()
 
-	if err := yaml.NewDecoder(confFile).Decode(&c.ContentConfig); err != nil {
+	if err := yaml.NewDecoder(confFile).Decode(&c.config); err != nil {
 		return fmt.Errorf("parse error in content config: %w", err)
 	}
 
@@ -534,7 +416,7 @@ func (c *Content) setup() error {
 }
 
 func (c *Content) setupChild() error {
-	for _, contentDir := range c.ContentConfig.ContentsDir {
+	for _, contentDir := range c.config.ContentsDir {
 		child, err := openContentDir(c.root, contentDir, c)
 		if err != nil {
 			return fmt.Errorf("failed to setup content path:%s  error is :%w", path.Join(c.Path(), contentDir), err)
@@ -1047,14 +929,14 @@ func isIndexMarkdownPath(p string) bool {
 }
 
 func (c *Content) effectiveLatest() int {
-	if c.ContentConfig.Latest == nil {
+	if c.config.Latest == nil {
 		return normalizeLatest(c.siteLatest)
 	}
-	return normalizeLatest(*c.ContentConfig.Latest)
+	return normalizeLatest(*c.config.Latest)
 }
 
 func (c *Content) isPostsContent() bool {
-	return strings.EqualFold(strings.TrimSpace(c.ContentConfig.ContentType), ContentTypePosts)
+	return strings.EqualFold(strings.TrimSpace(c.config.ContentType), ContentTypePosts)
 }
 
 func (c *Content) now() time.Time {
@@ -1065,72 +947,7 @@ func (c *Content) now() time.Time {
 	return time.Now().In(location)
 }
 
-func (c *Content) CollectIndexSeeds() []IndexSeed {
-	seeds := make([]IndexSeed, 0)
-	loadOrder := 0
-	c.collectIndexSeeds(&seeds, &loadOrder)
-	return seeds
-}
-
-func (c *Content) CollectPostsContents() []*Content {
-	collected := make([]*Content, 0)
-	c.collectPostsContents(&collected)
-	return collected
-}
-
-func (c *Content) collectPostsContents(collected *[]*Content) {
-	if c.isPostsContent() {
-		*collected = append(*collected, c)
-	}
-	for _, child := range c.children {
-		child.collectPostsContents(collected)
-	}
-}
-
-func (c *Content) collectIndexSeeds(seeds *[]IndexSeed, loadOrder *int) {
-	if c.ContentConfig.RegisterIndexing {
-		seed := IndexSeed{
-			URL:           normalizeIndexURL(c.Path()),
-			IndexTitle:    copyIndexTitleMap(c.ContentConfig.IndexTitle),
-			DefaultLocale: strings.TrimSpace(c.ContentConfig.DefaultLocale),
-			Priority:      c.priority(),
-			LoadOrder:     *loadOrder,
-		}
-		*loadOrder = *loadOrder + 1
-		*seeds = append(*seeds, seed)
-	}
-
-	for _, child := range c.children {
-		child.collectIndexSeeds(seeds, loadOrder)
-	}
-}
-
-func copyIndexTitleMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]string, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
-	return dst
-}
-
-func normalizeIndexURL(rawURL string) string {
-	if rawURL == "/" {
-		return rawURL
-	}
-	return strings.TrimSuffix(rawURL, "/") + "/"
-}
-
-func (c *Content) priority() int {
-	if c.ContentConfig.Priority == nil {
-		return defaultContentPriority
-	}
-	return *c.ContentConfig.Priority
-}
-
-type ContentConfig struct {
+type contentConfig struct {
 	RegisterIndexing bool              `yaml:"registerIndexing,omitempty"`
 	ContentType      string            `yaml:"contentType,omitempty"`
 	Priority         *int              `yaml:"priority,omitempty"`

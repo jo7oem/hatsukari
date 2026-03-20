@@ -18,12 +18,21 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 - 可視性制御: `visibility` と `publishAt` による公開判定
 - timezone 制御: `.site.yml` の `timezone` を公開判定時刻に適用
 
-## 実行方法（現状）
-`main.go` は `./sample` を読み込み、`:8080` で HTTP サーバを起動します。
+## 実行方法
+既定では `./sample` を読み込み、`:8080` で HTTP サーバを起動します。
 
 ```bash
 go run ./main.go
 ```
+
+CLI と環境変数で起動先を切り替えられます。
+
+```bash
+go run ./main.go -site ./sample -addr :8080
+```
+
+- 環境変数: `HATSUKARI_SITE_DIR`, `HATSUKARI_ADDR`
+- `PORT` も `HATSUKARI_ADDR` 未指定時のフォールバックとして利用可能
 
 ## 設定ファイル
 - サイト設定: `.site.yaml`（優先）または `.site.yml`

@@ -90,7 +90,7 @@ func TestSite_Setup(t *testing.T) {
 	}
 }
 
-func TestOpenSiteDir_Timezone(t *testing.T) {
+func TestSite_OpenDir_Timezone(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -156,6 +156,26 @@ func TestOpenSiteDir_Timezone(t *testing.T) {
 				t.Fatalf("location = %s, want %s", got, tt.wantLocation)
 			}
 		})
+	}
+}
+
+func TestSite_OpenDir_ConfigPriority(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yaml"), "title: \"yaml\"\ntimezone: \"Asia/Tokyo\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"yml\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+
+	s, err := OpenSiteDir(siteDir)
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	if got, want := s.location.String(), "Asia/Tokyo"; got != want {
+		t.Fatalf("location = %s, want %s", got, want)
 	}
 }
 
@@ -277,7 +297,7 @@ func TestSite_Posts(t *testing.T) {
 	}
 }
 
-func TestOpenSiteDir_MultiplePostsContents(t *testing.T) {
+func TestSite_OpenDir_MultiplePostsContents(t *testing.T) {
 	t.Parallel()
 
 	siteDir := t.TempDir()
@@ -431,6 +451,38 @@ func TestSite_PostTagsWithoutDefinitionFile(t *testing.T) {
 	_ = resp.Body.Close()
 	if got, want := resp.StatusCode, http.StatusNotFound; got != want {
 		t.Fatalf("GET /posts/tags/raw-tag status = %d, want %d", got, want)
+	}
+}
+
+func TestSite_PostTagsTemplateMissing(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{.contents.body}}")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "only.md"), "---\ntitle: Only\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\n---\nonly\n")
+
+	s, err := OpenSiteDir(siteDir)
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/posts/tags/")
+	if err != nil {
+		t.Fatalf("GET /posts/tags/ error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusInternalServerError; got != want {
+		t.Fatalf("GET /posts/tags/ status = %d, want %d", got, want)
 	}
 }
 

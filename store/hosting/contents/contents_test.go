@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ var testFS = func() *os.Root {
 	return root
 }()
 
-func TestOpenContentDir(t *testing.T) {
+func TestContent_OpenDir(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -46,6 +47,7 @@ func TestOpenContentDir(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := contents.OpenContentDir(testFS, tt.path)
@@ -222,13 +224,16 @@ func TestContent_ServeHTTP(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		content, err := contents.OpenContentDir(testFS, tt.path)
 		if err != nil {
 			t.Fatalf("failed to open content dir: %v", err)
 		}
 
 		server := httptest.NewServer(content)
+		t.Cleanup(server.Close)
 		for _, subTest := range tt.subtests {
+			subTest := subTest
 			t.Run(tt.name+"/"+subTest.name, func(t *testing.T) {
 				t.Parallel()
 				p := server.URL + subTest.url
@@ -241,6 +246,7 @@ func TestContent_ServeHTTP(t *testing.T) {
 				if resp.StatusCode != subTest.wantStatus {
 					t.Errorf("Get() status = %v, wantStatus %v", resp.StatusCode, subTest.wantStatus)
 				}
+				defer func() { _ = resp.Body.Close() }()
 
 				body, _ := io.ReadAll(resp.Body)
 				bodyStr := string(body)
@@ -264,5 +270,70 @@ func TestContent_ServeHTTP(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestContent_ServeHTTP_InvalidTemplatesDir(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeContentTestFile(t, filepath.Join(siteDir, ".content.yaml"), "templatesDir: ../bad\ncontentsDir: []\n")
+	writeContentTestFile(t, filepath.Join(siteDir, "index.md"), "hello\n")
+
+	root, err := os.OpenRoot(siteDir)
+	if err != nil {
+		t.Fatalf("os.OpenRoot() error = %v", err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+
+	content, err := contents.OpenContentDir(root, ".")
+	if err != nil {
+		t.Fatalf("OpenContentDir() error = %v", err)
+	}
+
+	server := httptest.NewServer(content)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusInternalServerError; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+}
+
+func TestContent_OpenDir_PostsReservedPath(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeContentTestFile(t, filepath.Join(siteDir, ".content.yaml"), "contentType: posts\ncontentsDir: []\n")
+	writeContentTestFile(t, filepath.Join(siteDir, "index.md"), "posts\n")
+	writeContentTestFile(t, filepath.Join(siteDir, "tags.md"), "reserved\n")
+
+	root, err := os.OpenRoot(siteDir)
+	if err != nil {
+		t.Fatalf("os.OpenRoot() error = %v", err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+
+	_, err = contents.OpenContentDir(root, ".")
+	if err == nil {
+		t.Fatal("OpenContentDir() error = nil, want reserved posts path error")
+	}
+	if !strings.Contains(err.Error(), "reserved posts path exists: tags.md") {
+		t.Fatalf("OpenContentDir() error = %v, want reserved posts path message", err)
+	}
+}
+
+func writeContentTestFile(t *testing.T, filePath, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {
+		t.Fatalf("failed to create dir for %s: %v", filePath, err)
+	}
+	if err := os.WriteFile(filePath, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write %s: %v", filePath, err)
 	}
 }

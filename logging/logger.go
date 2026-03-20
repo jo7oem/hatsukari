@@ -35,10 +35,9 @@ type ctxWith struct {
 
 func (l *Logger) AddContextKeys(logKey string, ctxKey any) {
 	for i, v := range l.ctxWiths {
-		if v.logKey == logKey && v.ctxKey == ctxKey {
-			return
+		if v.logKey != logKey {
+			continue
 		}
-
 		l.ctxWiths[i] = ctxWith{logKey: logKey, ctxKey: ctxKey}
 
 		return

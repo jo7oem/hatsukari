@@ -1,6 +1,7 @@
 package logging_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -272,5 +273,50 @@ func TestLogger_Error(t *testing.T) {
 				t.Fatalf("unexpected log record attrs (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestLogger_AddContextKeys(t *testing.T) {
+	t.Parallel()
+
+	type ctxKey string
+	cph := newHandler(slog.LevelInfo)
+	l := logging.NewLogger(cph.handler, "test")
+	l.AddContextKeys("requestID", ctxKey("requestID"))
+	l.AddContextKeys("userID", ctxKey("userID"))
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ctxKey("requestID"), "req-1")
+	ctx = context.WithValue(ctx, ctxKey("userID"), 42)
+	l.InfoContext(ctx, "ctx test")
+
+	lr, err := cph.GetLogRecord()
+	if err != nil {
+		t.Fatalf("failed to get log record: %v", err)
+	}
+
+	if got, want := lr.Attrs["requestID"], "req-1"; got != want {
+		t.Fatalf("requestID = %v, want %v", got, want)
+	}
+	if got, want := lr.Attrs["userID"], float64(42); got != want {
+		t.Fatalf("userID = %v, want %v", got, want)
+	}
+}
+
+func TestLogger_SetSaveCodeTraceLevel(t *testing.T) {
+	t.Parallel()
+
+	cph := newHandler(slog.LevelInfo)
+	l := logging.NewLogger(cph.handler, "test")
+	l.SetSaveCodeTraceLevel(slog.Level(100))
+	l.Error("error message", errors.New("boom"))
+
+	lr, err := cph.GetLogRecord()
+	if err != nil {
+		t.Fatalf("failed to get log record: %v", err)
+	}
+
+	if _, ok := lr.Attrs["stacktrace"]; ok {
+		t.Fatalf("stacktrace should not exist when saveCodeTrace level is higher than ERROR")
 	}
 }
