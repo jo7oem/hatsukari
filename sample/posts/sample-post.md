@@ -1,14 +1,12 @@
 ---
-# 記事のメタ情報
-slug: sample-post
-# 複数タグ対応
-tags: ["intro", "sample"]
-# カバー画像の相対パス（任意）
-cover: cover.jpg
-# 公開日（ISO8601）
-date: 2025-01-01
-# タイトル
 title: サンプル記事
+postedAt: 2025-01-01T00:00:00Z
+visibility: public
+summary: sample 配下での生成確認用記事
+tags: ["intro", "sample"]
+revisions:
+  - revisedAt: 2025-01-02T09:00:00Z
+    summary: タイポ修正
 ---
 
 # サンプル記事

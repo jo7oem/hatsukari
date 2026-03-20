@@ -2,18 +2,23 @@ package site
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
 	"gopkg.in/yaml.v3"
 )
 
 type SiteConfig struct {
 	Title          string   `yaml:"title"`
+	Timezone       string   `yaml:"timezone,omitempty"`
+	Latest         *int     `yaml:"latest,omitempty"`
 	TemplatesDir   string   `yaml:"templatesDir"`
 	RootContentDir string   `yaml:"rootContentDir"`
 	ContentsDir    []string `yaml:"contentsDir,omitempty"`
@@ -44,6 +49,10 @@ func openSiteConfig(fs *os.Root) (*SiteConfig, error) {
 }
 
 func OpenSiteDir(path string) (*Site, error) {
+	return OpenSiteDirWithLogger(path, nil)
+}
+
+func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 	path = filepath.Clean(path)
 	root, err := os.OpenRoot(path)
 	if err != nil {
@@ -55,14 +64,27 @@ func OpenSiteDir(path string) (*Site, error) {
 		return nil, err
 	}
 
+	location, err := resolveTimezone(conf.Timezone)
+	if err != nil {
+		if logger != nil {
+			logger.Error("invalid site timezone", err, slog.String("timezone", strings.TrimSpace(conf.Timezone)))
+		}
+		return nil, err
+	}
+
 	site := &Site{
-		Title:  "My Site",
-		fs:     root,
-		config: *conf,
-		mux:    http.NewServeMux(),
+		Title:    "My Site",
+		fs:       root,
+		config:   *conf,
+		mux:      http.NewServeMux(),
+		logger:   logger,
+		location: location,
 	}
 
 	if err := site.Setup(); err != nil {
+		if logger != nil {
+			logger.Error("failed to setup site", err)
+		}
 		return nil, err
 	}
 
@@ -71,11 +93,13 @@ func OpenSiteDir(path string) (*Site, error) {
 }
 
 type Site struct {
-	Title  string
-	config SiteConfig
-	fs     *os.Root
-	mux    *http.ServeMux
-	vars   map[string]any
+	Title    string
+	config   SiteConfig
+	fs       *os.Root
+	mux      *http.ServeMux
+	vars     map[string]any
+	logger   *logging.Logger
+	location *time.Location
 }
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -99,18 +123,41 @@ func (s *Site) Setup() error {
 	mux := http.NewServeMux()
 	root, err := contents.OpenContentDir(s.fs, s.Config().RootContentDir)
 	if err != nil {
+		if s.logger != nil {
+			s.logger.Error("failed to open root content", err)
+		}
 		return err
 	}
+	root.SetLogger(s.logger)
+	now := time.Now().In(s.location)
+	siteLatest := resolveLatestLimit(s.config.Latest)
+	root.SetPostsContext(s.location, siteLatest, now)
 
 	siteIndexes := buildSiteIndexes(root.CollectIndexSeeds())
+	sitePosts := root.BuildSitePosts(now, siteLatest)
 	s.vars = map[string]any{
 		"indexes": siteIndexes,
+		"posts":   sitePosts,
 	}
 	root.SetSiteVariables(s.vars)
 
 	mux.Handle("/", root)
 	s.mux = mux
 	return nil
+}
+
+func resolveTimezone(raw string) (*time.Location, error) {
+	timezone := strings.TrimSpace(raw)
+	if timezone == "" {
+		return time.UTC, nil
+	}
+
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid timezone %q: %w", timezone, err)
+	}
+
+	return location, nil
 }
 
 func buildSiteIndexes(seeds []contents.IndexSeed) []map[string]any {
@@ -158,4 +205,11 @@ func resolveTitle(seed contents.IndexSeed, locale string) string {
 		return ""
 	}
 	return strings.TrimSpace(seed.IndexTitle[locale])
+}
+
+func resolveLatestLimit(v *int) int {
+	if v == nil || *v <= 0 {
+		return 10
+	}
+	return *v
 }

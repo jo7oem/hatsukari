@@ -1,4 +1,5 @@
 registerIndexing: true
+contentType: posts
 indexTitle:
     ja: "記事一覧"
     en: "Posts"

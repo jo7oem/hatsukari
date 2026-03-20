@@ -15,7 +15,7 @@ func main() {
 	samplePath := "./sample"
 	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
 
-	siteMap, err := site.OpenSiteDir(samplePath)
+	siteMap, err := site.OpenSiteDirWithLogger(samplePath, logger)
 	if err != nil {
 		logger.Error("failed to open site dir", err)
 		return

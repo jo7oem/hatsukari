@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	texttemplate "text/template"
 	"time"
 
+	"github.com/jo7oem/hatsukari/logging"
 	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/parser"
@@ -31,7 +33,9 @@ type Renderer struct {
 	templateFS        fs.FS
 	templateName      string
 	contentsVariables map[string]any
+	contentsPosts     any
 	siteVariables     map[string]any
+	logger            *logging.Logger
 }
 
 func WithTemplateFS(templateFS fs.FS, templateName string) Option {
@@ -47,9 +51,21 @@ func WithContentsVariables(contentsVariables map[string]any) Option {
 	}
 }
 
+func WithContentsPosts(contentsPosts any) Option {
+	return func(r *Renderer) {
+		r.contentsPosts = contentsPosts
+	}
+}
+
 func WithSiteVariables(siteVariables map[string]any) Option {
 	return func(r *Renderer) {
 		r.siteVariables = siteVariables
+	}
+}
+
+func WithLogger(logger *logging.Logger) Option {
+	return func(r *Renderer) {
+		r.logger = logger
 	}
 }
 
@@ -62,7 +78,7 @@ func NewRenderer(b []byte, opts ...Option) *Renderer {
 }
 
 func (r *Renderer) Render() ([]byte, error) {
-	metaData, err := extractMeta(r.source)
+	metaData, err := ExtractMeta(r.source)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +102,7 @@ func (r *Renderer) Render() ([]byte, error) {
 		"contents": map[string]any{
 			"body":      template.HTML(htmlBuffer.String()),
 			"variables": r.contentsVariables,
+			"posts":     r.contentsPosts,
 		},
 		"site": r.siteVariables,
 		"page": map[string]any{
@@ -96,7 +113,7 @@ func (r *Renderer) Render() ([]byte, error) {
 	return renderPageTemplate(r.templateFS, r.templateName, pageData, htmlBuffer.Bytes())
 }
 
-func extractMeta(source []byte) (map[string]any, error) {
+func ExtractMeta(source []byte) (map[string]any, error) {
 	context := parser.NewContext()
 	_ = markdown.Parser().Parse(gtext.NewReader(source), parser.WithContext(context))
 	metaData := meta.Get(context)
@@ -207,7 +224,9 @@ func renderPageTemplate(templateFS fs.FS, templateName string, data map[string]a
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	b, err := r.Render()
 	if err != nil {
-		fmt.Printf("render error: %v\n", err)
+		if r.logger != nil {
+			r.logger.Error("failed to render", err, slog.String("path", req.URL.Path))
+		}
 		http.Error(w, "failed to render", http.StatusInternalServerError)
 		return
 	}

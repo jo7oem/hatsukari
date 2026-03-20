@@ -9,38 +9,102 @@
   - 例: `{{.title}}`, `{{index .Suuji 0}}`
 - 日付の簡易参照は `2006/01/02 15:04:05` 形式に正規化されます。
 
-## Contents テンプレート展開
+## Content テンプレート
 - 各 `Content` は `ContentConfig.TemplatesDir` を参照します。
 - 配信対象ファイルの拡張子に対応する `template.<拡張子>` を `TemplatesDir` 直下から読み込みます。
   - 例: `.md` の場合は `template.md`
 - `template.<拡張子>` が存在しない場合は、変換後の素の HTML を返します。
 - `template.*` は同じ `TemplatesDir` 直下のテンプレートを読み込めます。
 
-### テンプレートで使える変数
+## テンプレート変数
+
+### 共通
 - `contents.body`: Markdown 変換後の HTML
 - `contents.variables`: `.content.yaml` の `variables`
-- `site.indexes`: `registerIndexing: true` の Content を優先順位ソートした配列
 - `page.meta`: `goldmark-meta` が返す Front Matter の生値
 
-`site.indexes` の要素構造:
+### サイト全体
+- `site.indexes`: `registerIndexing: true` の Content を優先順位ソートした配列
+- `site.posts`: サイト全体の記事情報
+  - `site.posts.all`: サイト全体の一覧表示対象記事
+  - `site.posts.latest`: サイト全体の最新記事
+
+### posts Content 配下
+- `contents.posts`: `contentType: posts` の Content で利用できる記事情報
+  - `contents.posts.all`: その Content 配下の一覧表示対象記事
+  - `contents.posts.latest`: その Content 配下の最新記事
+
+### `site.indexes` の構造
 - `url`: 目次用 URL（末尾 `/` 付き）
 - `title.default`: `indexTitle[defaultLocale]` を優先し、未設定時は `indexTitle.ja`、さらに未設定なら `url`
 - `title.ja`: `indexTitle.ja` を優先し、未設定時は `url`
 
-公開ポリシー:
-- `title` は `default` と `ja` のみを公開する
-- `title.en` など `ja` 以外の locale キーは `site.indexes` に含めない
-- `?lang=<locale>` 指定時は `title[locale]` を参照し、未定義なら `title.default` にフォールバックする
+### `site.indexes` の公開ポリシー
+- `title` は `default` と `ja` のみを公開します。
+- `title.en` など `ja` 以外の locale キーは `site.indexes` に含めません。
+- `?lang=<locale>` 指定時は `title[locale]` を参照し、未定義なら `title.default` にフォールバックします。
 
-ソート順:
+### `site.indexes` の並び順
 - `priority` 昇順（小さい値ほど高優先、負値を許容）
 - `priority` 同値時は読み込み順（`ContentsDir` の定義順を含む）
 
-参照例:
+### 参照例
 - `{{.contents.body}}`
 - `{{.page.meta.title}}`
 - `{{index .contents.variables "label"}}`
 - `{{index (index .site.indexes 0) "url"}}`
+- `{{range .site.posts.latest}}{{.Title}}{{end}}`
+- `{{range .contents.posts.latest}}{{.Title}}{{end}}`
+
+## Site 設定
+
+### `timezone`
+- `.site.yml` の `timezone` で公開判定の基準タイムゾーンを指定できます。
+- `timezone` は前後空白を `TrimSpace` して解釈します。
+- 未指定時は `UTC` を使用します。
+- 不正な値は起動エラーになります。
+- エラーメッセージには設定値を含めます。
+
+### `latest`
+- `.site.yml` の `latest` がサイト全体の最新記事件数です。
+- 未指定時の既定値は `10` です。
+
+## posts 仕様
+- `.content.yaml` に `contentType: posts` を指定した Content を記事収集対象にします。
+- `index.md` は記事収集対象外です（一覧ページ用途）。
+- Front Matter がない `.md` は記事として扱いません。
+- `contentType: posts` 配下では `.md` への直接アクセスは常に `404` を返します。
+- 拡張子なし URL（例: `/posts/sample-post`）で記事へアクセスします。
+
+### 記事メタ
+- 必須
+  - `title`
+  - `postedAt`
+- 任意
+  - `publishAt`
+  - `summary`
+  - `tags`
+  - `revisions`
+- 使用しない項目
+  - `slug`（指定しても無視します）
+
+### `revisions`
+- `revisions` は `[{ revisedAt, summary }]` 形式です。
+- 改稿履歴がない場合、`LatestRevision()` は `nil` を返します。
+- 一覧や記事上部では `LatestRevision()` による最新改稿表示を想定しています。
+- 記事末尾では `revisions` 全体表示を想定しています。
+
+### `visibility`
+- `public`: URL OK / tag OK / list OK
+- `unlisted`: URL OK / tag OK / list NG
+- `directOnly`: URL OK / tag NG / list NG
+- `private`: URL NG / tag NG / list NG
+- `publishAt` 未到達、または可視条件未達は `404` 扱いです。
+- `publishAt` 判定は記事詳細・記事一覧・タグ一覧のすべてで共通に適用します。
+
+### `latest` の解決順
+- `.site.yml` の `latest` がサイト全体 `site.posts.latest` の上限です。
+- `contentType: posts` の `.content.yaml` で `latest` を指定すると、その Content 配下表示（`contents.posts.latest`）のみ上書きします。
 
 ## テスト
 ```bash
