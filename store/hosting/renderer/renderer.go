@@ -207,6 +207,7 @@ func renderPageTemplate(templateFS fs.FS, templateName string, data map[string]a
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	b, err := r.Render()
 	if err != nil {
+		fmt.Printf("render error: %v\n", err)
 		http.Error(w, "failed to render", http.StatusInternalServerError)
 		return
 	}

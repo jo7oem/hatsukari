@@ -27,6 +27,11 @@
 - `title.default`: `indexTitle[defaultLocale]` を優先し、未設定時は `indexTitle.ja`、さらに未設定なら `url`
 - `title.ja`: `indexTitle.ja` を優先し、未設定時は `url`
 
+公開ポリシー:
+- `title` は `default` と `ja` のみを公開する
+- `title.en` など `ja` 以外の locale キーは `site.indexes` に含めない
+- `?lang=<locale>` 指定時は `title[locale]` を参照し、未定義なら `title.default` にフォールバックする
+
 ソート順:
 - `priority` 昇順（小さい値ほど高優先、負値を許容）
 - `priority` 同値時は読み込み順（`ContentsDir` の定義順を含む）

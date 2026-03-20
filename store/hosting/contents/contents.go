@@ -116,7 +116,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 
 		opts := []renderer.Option{
 			renderer.WithContentsVariables(c.ContentConfig.Variables),
-			renderer.WithSiteVariables(c.siteVariables),
+			renderer.WithSiteVariables(c.requestSiteVariables(r)),
 		}
 		if templateFS != nil && templateName != "" {
 			opts = append(opts, renderer.WithTemplateFS(templateFS, templateName))
@@ -337,6 +337,22 @@ func (c *Content) SetSiteVariables(siteVariables map[string]any) {
 	for _, child := range c.children {
 		child.SetSiteVariables(siteVariables)
 	}
+}
+
+func (c *Content) requestSiteVariables(r *http.Request) map[string]any {
+	if c.siteVariables == nil {
+		return nil
+	}
+
+	localized := make(map[string]any, len(c.siteVariables)+1)
+	for k, v := range c.siteVariables {
+		localized[k] = v
+	}
+
+	lang := strings.TrimSpace(r.URL.Query().Get("lang"))
+	localized["currentLocale"] = lang
+
+	return localized
 }
 
 func (c *Content) CollectIndexSeeds() []IndexSeed {

@@ -61,9 +61,27 @@ func TestSite_Setup(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
-	for _, fragment := range []string{"NAV=4", "FIRST=/c/", "FIRST_JA=シー"} {
+	for _, fragment := range []string{"NAV=4", "FIRST=/c/", "FIRST_JA=シー", "CURRENT=", "FIRST_SELECTED=シー"} {
 		if !strings.Contains(bodyStr, fragment) {
 			t.Fatalf("GET / body does not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+
+	respEN, err := server.Client().Get(server.URL + "/?lang=en")
+	if err != nil {
+		t.Fatalf("GET /?lang=en error = %v", err)
+	}
+	defer func() { _ = respEN.Body.Close() }()
+
+	if got, want := respEN.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET /?lang=en status = %d, want %d", got, want)
+	}
+
+	bodyEN, _ := io.ReadAll(respEN.Body)
+	bodyENStr := string(bodyEN)
+	for _, fragment := range []string{"CURRENT=en", "FIRST_SELECTED=シー"} {
+		if !strings.Contains(bodyENStr, fragment) {
+			t.Fatalf("GET /?lang=en body does not contain %q\nbody=%s", fragment, bodyENStr)
 		}
 	}
 }
