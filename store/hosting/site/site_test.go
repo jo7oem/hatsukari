@@ -2,6 +2,7 @@ package site
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
 )
 
 func TestSite_Setup(t *testing.T) {
 	t.Parallel()
 
-	s, err := OpenSiteDir("./assets_test/indexing_site")
+	s, err := OpenSiteDir("./assets_test/indexing_site", newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -90,6 +92,18 @@ func TestSite_Setup(t *testing.T) {
 	}
 }
 
+func TestSite_OpenDir_LoggerRequired(t *testing.T) {
+	t.Parallel()
+
+	_, err := OpenSiteDir("./assets_test/indexing_site", nil)
+	if err == nil {
+		t.Fatal("OpenSiteDir() error = nil, want logger required error")
+	}
+	if !strings.Contains(err.Error(), "logger must not be nil") {
+		t.Fatalf("OpenSiteDir() error = %v, want contains logger must not be nil", err)
+	}
+}
+
 func TestSite_OpenDir_Timezone(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +150,7 @@ func TestSite_OpenDir_Timezone(t *testing.T) {
 				t.Fatalf("failed to write index.md: %v", err)
 			}
 
-			s, err := OpenSiteDir(siteDir)
+			s, err := OpenSiteDir(siteDir, newDiscardLogger())
 			if tt.wantErrContain != "" {
 				if err == nil {
 					t.Fatalf("OpenSiteDir() error = nil, want contains %q", tt.wantErrContain)
@@ -167,7 +181,7 @@ func TestSite_OpenDir_ConfigPriority(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
 
-	s, err := OpenSiteDir(siteDir)
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -231,7 +245,7 @@ func TestSite_Posts(t *testing.T) {
 		}
 	}
 
-	s, err := OpenSiteDir(siteDir)
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -308,7 +322,7 @@ func TestSite_OpenDir_MultiplePostsContents(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, "content", "diary", ".content.yaml"), "contentType: posts\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "diary", "index.md"), "diary\n")
 
-	_, err := OpenSiteDir(siteDir)
+	_, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err == nil {
 		t.Fatal("OpenSiteDir() error = nil, want multiple posts contents error")
 	}
@@ -342,7 +356,7 @@ func TestSite_PostTags(t *testing.T) {
 		writeTestFile(t, filepath.Join(siteDir, "content", "posts", name), body)
 	}
 
-	s, err := OpenSiteDir(siteDir)
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -420,7 +434,7 @@ func TestSite_PostTagsWithoutDefinitionFile(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "{{range .contents.posts.tags}}{{.Key}};{{end}}")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "only.md"), "---\ntitle: Only\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\nsummary: only\ntags: [\"raw-tag\"]\n---\nonly\n")
 
-	s, err := OpenSiteDir(siteDir)
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -465,7 +479,7 @@ func TestSite_PostTagsTemplateMissing(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{.contents.body}}")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "only.md"), "---\ntitle: Only\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\n---\nonly\n")
 
-	s, err := OpenSiteDir(siteDir)
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenSiteDir() error = %v", err)
 	}
@@ -493,4 +507,8 @@ func writeTestFile(t *testing.T, filePath, content string) {
 	if err := os.WriteFile(filePath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write %s: %v", filePath, err)
 	}
+}
+
+func newDiscardLogger() *logging.Logger {
+	return logging.NewLogger(slog.NewTextHandler(io.Discard, nil), "test")
 }

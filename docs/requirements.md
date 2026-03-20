@@ -30,7 +30,7 @@
 - 現実装（現状）
   - `main.go` は `./sample` を固定で読み込み、`:8080` で起動する。
 - 実装根拠
-  - `main.go` の `site.OpenSiteDirWithLogger("./sample", logger)` と `http.ListenAndServe(":8080", siteMap)`。
+  - `main.go` の `site.OpenSiteDir("./sample", logger)` と `http.ListenAndServe(":8080", siteMap)`。
 - テスト根拠
   - `site`/`contents` の `httptest.NewServer(...)` によりハンドラとして配信可能なことを検証。
 - 差分
@@ -44,7 +44,7 @@
 - 実装根拠
   - `store/hosting/site/site.go` の `openSiteConfig`。
 - テスト根拠
-  - `TestOpenSiteDir_Timezone`（`.site.yml` を用いて検証）。
+  - `TestSite_OpenDir_Timezone`（`.site.yml` を用いて検証）。
 - 差分
   - `.site.yaml` 優先順自体の専用テストは未整備。
 
@@ -155,9 +155,9 @@
 - 実装根拠
   - `setup`, `setupChild`。
 - テスト根拠
-  - `TestOpenContentDir`, `TestContent_ServeHTTP`（nested case）。
+  - `TestContent_OpenDir`, `TestContent_ServeHTTP`（nested case）。
 - 差分
-  - なし。
+  - `OpenContentDir` は `logger` に `nil` を許可しない。
 
 ### RQ-302 拡張子なし URL の解決優先順位を持つこと
 - 仕様（期待）
@@ -269,11 +269,11 @@
 - 現実装（現状）
   - `resolveTimezone` で実現。
 - 実装根拠
-  - `OpenSiteDirWithLogger`, `resolveTimezone`。
+  - `OpenSiteDir`, `resolveTimezone`。
 - テスト根拠
-  - `TestOpenSiteDir_Timezone`。
+  - `TestSite_OpenDir_Timezone`。
 - 差分
-  - なし。
+  - `OpenSiteDir` は `logger` に `nil` を許可しない。
 
 ### RQ-402 `site.indexes` を優先度順に公開できること
 - 仕様（期待）
@@ -308,7 +308,7 @@
 - 実装根拠
   - `Setup`。
 - テスト根拠
-  - `TestOpenSiteDir_MultiplePostsContents`。
+  - `TestSite_OpenDir_MultiplePostsContents`。
 - 差分
   - なし。
 
@@ -330,7 +330,6 @@
 
 ### 8.1 高優先（仕様化または実装追加が必要）
 - `main.go` が設定パス/ポートを固定し、CLI 入力や環境変数を受けない。
-- `site.ServeHTTP` がリクエストパスを `fmt.Println` で標準出力へ出す（運用時ノイズ、ログ統一されていない）。
 - `README.md` 以外の旧調査資料に、現実装と異なる将来案（静的生成前提など）が混在しやすい。
 
 ### 8.2 中優先（テスト不足）
@@ -343,6 +342,15 @@
 ### 8.3 低優先（改善余地）
 - `store/hosting/site/page.go` は空で、責務未定義。
 - 要件 ID 単位の自動トレーサビリティ（要件 -> テスト）の CI 検証は未導入。
+
+### 8.4 エラーメッセージ方針
+- 公開 API の前提条件違反は、英小文字・句点なしのメッセージで統一する。
+- `nil` 禁止引数は `<argument> must not be nil` 形式に統一する。
+- 空文字禁止引数は `<argument> must not be empty` 形式に統一する。
+- 方針適用済み:
+  - `site.OpenSiteDir(path, logger)` は `logger must not be nil`。
+  - `contents.OpenContentDir(fs, path, logger)` は `logger must not be nil`。
+  - `main.parseRuntimeConfig(args, getenv)` は `siteDir must not be empty` / `addr must not be empty`。
 
 ---
 

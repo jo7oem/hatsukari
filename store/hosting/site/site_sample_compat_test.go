@@ -14,9 +14,9 @@ func TestSite_ServeHTTP_SampleCompatibility(t *testing.T) {
 	t.Parallel()
 
 	samplePath := sampleDirForTest(t)
-	s, err := OpenSiteDir(samplePath)
+	s, err := OpenSiteDir(samplePath, newDiscardLogger())
 	if err != nil {
-		t.Fatalf("OpenSiteDir(%q) error = %v", samplePath, err)
+		t.Fatalf("OpenSiteDir(%q, newDiscardLogger()) error = %v", samplePath, err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
 

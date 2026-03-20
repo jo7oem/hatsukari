@@ -2,6 +2,7 @@ package contents_test
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
 )
 
@@ -46,15 +48,29 @@ func TestContent_OpenDir(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
+	logger := newDiscardLogger()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := contents.OpenContentDir(testFS, tt.path)
+			_, err := contents.OpenContentDir(testFS, tt.path, logger)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("OpenContentDir() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 		})
+	}
+}
+
+func TestContent_OpenDir_LoggerRequired(t *testing.T) {
+	t.Parallel()
+
+	_, err := contents.OpenContentDir(testFS, "simple", nil)
+	if err == nil {
+		t.Fatal("OpenContentDir() error = nil, want logger required error")
+	}
+	if !strings.Contains(err.Error(), "logger must not be nil") {
+		t.Fatalf("OpenContentDir() error = %v, want contains logger must not be nil", err)
 	}
 }
 
@@ -222,8 +238,9 @@ func TestContent_ServeHTTP(t *testing.T) {
 			},
 		},
 	}
+	logger := newDiscardLogger()
 	for _, tt := range tests {
-		content, err := contents.OpenContentDir(testFS, tt.path)
+		content, err := contents.OpenContentDir(testFS, tt.path, logger)
 		if err != nil {
 			t.Fatalf("failed to open content dir: %v", err)
 		}
@@ -283,7 +300,7 @@ func TestContent_ServeHTTP_InvalidTemplatesDir(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = root.Close() })
 
-	content, err := contents.OpenContentDir(root, ".")
+	content, err := contents.OpenContentDir(root, ".", newDiscardLogger())
 	if err != nil {
 		t.Fatalf("OpenContentDir() error = %v", err)
 	}
@@ -316,7 +333,7 @@ func TestContent_OpenDir_PostsReservedPath(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = root.Close() })
 
-	_, err = contents.OpenContentDir(root, ".")
+	_, err = contents.OpenContentDir(root, ".", newDiscardLogger())
 	if err == nil {
 		t.Fatal("OpenContentDir() error = nil, want reserved posts path error")
 	}
@@ -333,4 +350,8 @@ func writeContentTestFile(t *testing.T, filePath, content string) {
 	if err := os.WriteFile(filePath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write %s: %v", filePath, err)
 	}
+}
+
+func newDiscardLogger() *logging.Logger {
+	return logging.NewLogger(slog.NewTextHandler(io.Discard, nil), "test")
 }

@@ -54,10 +54,10 @@ func parseRuntimeConfig(args []string, getenv func(string) string) (runtimeConfi
 	conf.siteDir = strings.TrimSpace(conf.siteDir)
 	conf.addr = strings.TrimSpace(conf.addr)
 	if conf.siteDir == "" {
-		return runtimeConfig{}, fmt.Errorf("site directory is required")
+		return runtimeConfig{}, fmt.Errorf("siteDir must not be empty")
 	}
 	if conf.addr == "" {
-		return runtimeConfig{}, fmt.Errorf("listen address is required")
+		return runtimeConfig{}, fmt.Errorf("addr must not be empty")
 	}
 
 	return conf, nil
@@ -71,7 +71,7 @@ func main() {
 
 	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
 
-	siteMap, err := site.OpenSiteDirWithLogger(conf.siteDir, logger)
+	siteMap, err := site.OpenSiteDir(conf.siteDir, logger)
 	if err != nil {
 		logger.Error("failed to open site dir", err)
 		return

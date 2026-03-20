@@ -143,10 +143,13 @@ type Content struct {
 	tagDefinitions map[string]TagDefinition
 }
 
-func OpenContentDir(fs *os.Root, path string) (*Content, error) {
-	return openContentDir(fs, path, nil)
+func OpenContentDir(fs *os.Root, path string, logger *logging.Logger) (*Content, error) {
+	if logger == nil {
+		return nil, errors.New("logger must not be nil")
+	}
+	return openContentDir(fs, path, nil, logger)
 }
-func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error) {
+func openContentDir(fs *os.Root, path string, parent *Content, logger *logging.Logger) (*Content, error) {
 	root, err := fs.OpenRoot(path)
 	if err != nil {
 		return nil, err
@@ -156,6 +159,7 @@ func openContentDir(fs *os.Root, path string, parent *Content) (*Content, error)
 		relPath: path,
 		root:    root,
 		serveFS: http.FileServerFS(root.FS()),
+		logger:  logger,
 	}
 	if parent == nil {
 		c.rootPath = c
@@ -418,7 +422,7 @@ func (c *Content) setup() error {
 
 func (c *Content) setupChild() error {
 	for _, contentDir := range c.config.ContentsDir {
-		child, err := openContentDir(c.root, contentDir, c)
+		child, err := openContentDir(c.root, contentDir, c, c.logger)
 		if err != nil {
 			return fmt.Errorf("failed to setup content path:%s  error is :%w", path.Join(c.Path(), contentDir), err)
 		}
@@ -529,13 +533,6 @@ func (c *Content) BuildSitePosts(now time.Time, siteLatest int) map[string]any {
 		"latest": limitPosts(listPosts, normalizeLatest(siteLatest)),
 		"tags":   buildTagList(tagPosts),
 		"byTag":  buildTagMap(tagPosts),
-	}
-}
-
-func (c *Content) SetLogger(logger *logging.Logger) {
-	c.logger = logger
-	for _, child := range c.children {
-		child.SetLogger(logger)
 	}
 }
 

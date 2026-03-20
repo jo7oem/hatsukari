@@ -8,6 +8,13 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 - `renderer` が Front Matter 付き Markdown を HTML 化しテンプレート適用
 - `logging` が `slog` ベースの薄いラッパーを提供
 
+## API 利用時の注意
+- `site.OpenSiteDir(path, logger)` は `logger` に `nil` を許可しません。
+- `contents.OpenContentDir(fs, path, logger)` も `logger` に `nil` を許可しません。
+- 前提条件エラーは `<argument> must not be nil` 形式のメッセージで統一しています。
+- 空文字禁止の前提条件エラーは `<argument> must not be empty` 形式で統一しています。
+- テストや静音実行では `slog.NewTextHandler(io.Discard, nil)` を使った logger を渡してください。
+
 ## 外形的にできること
 - Content ツリー配信: `.content.yaml` の `contentsDir` で階層化した配信
 - Markdown 配信: Front Matter 抽出、本文のメタ展開、HTML 変換

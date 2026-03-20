@@ -17,6 +17,7 @@ fmt: $(DEV_BIN)/golangci-lint
 
 .PHONY: lint
 lint: $(DEV_BIN)/golangci-lint
+	go fix ./...
 	$(DEV_BIN)/golangci-lint run --config=.golangci.yml
 
 .PHONY: setup

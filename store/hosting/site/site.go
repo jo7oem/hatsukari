@@ -23,11 +23,11 @@ type SiteConfig struct {
 	ContentsDir    []string `yaml:"contentsDir,omitempty"`
 }
 
-func OpenSiteDir(path string) (*Site, error) {
-	return OpenSiteDirWithLogger(path, nil)
-}
+func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger must not be nil")
+	}
 
-func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 	path = filepath.Clean(path)
 	root, err := os.OpenRoot(path)
 	if err != nil {
@@ -41,9 +41,7 @@ func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 
 	location, err := resolveTimezone(conf.Timezone)
 	if err != nil {
-		if logger != nil {
-			logger.Error("invalid site timezone", err, slog.String("timezone", strings.TrimSpace(conf.Timezone)))
-		}
+		logger.Error("invalid site timezone", err, slog.String("timezone", strings.TrimSpace(conf.Timezone)))
 		return nil, err
 	}
 
@@ -56,9 +54,7 @@ func OpenSiteDirWithLogger(path string, logger *logging.Logger) (*Site, error) {
 	}
 
 	if err := site.Setup(); err != nil {
-		if logger != nil {
-			logger.Error("failed to setup site", err)
-		}
+		logger.Error("failed to setup site", err)
 		return nil, err
 	}
 
@@ -100,14 +96,11 @@ func (s *Site) Variables() map[string]any {
 
 func (s *Site) Setup() error {
 	mux := http.NewServeMux()
-	root, err := contents.OpenContentDir(s.fs, s.Config().RootContentDir)
+	root, err := contents.OpenContentDir(s.fs, s.Config().RootContentDir, s.logger)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Error("failed to open root content", err)
-		}
+		s.logger.Error("failed to open root content", err)
 		return err
 	}
-	root.SetLogger(s.logger)
 	siteLatest := resolveLatestLimit(s.config.Latest)
 	root.SetPostsContext(s.location, siteLatest)
 	postsContents := root.CollectPostsContents()

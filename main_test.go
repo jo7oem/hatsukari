@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -9,11 +10,12 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		args    []string
-		env     map[string]string
-		want    runtimeConfig
-		wantErr bool
+		name            string
+		args            []string
+		env             map[string]string
+		want            runtimeConfig
+		wantErr         bool
+		wantErrContains string
 	}{
 		{
 			name: "DefaultValues",
@@ -48,16 +50,18 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 			want: runtimeConfig{siteDir: "./other", addr: ":3000"},
 		},
 		{
-			name:    "EmptySite",
-			args:    []string{"-site", " "},
-			env:     map[string]string{},
-			wantErr: true,
+			name:            "EmptySite",
+			args:            []string{"-site", " "},
+			env:             map[string]string{},
+			wantErr:         true,
+			wantErrContains: "siteDir must not be empty",
 		},
 		{
-			name:    "EmptyAddr",
-			args:    []string{"-addr", " "},
-			env:     map[string]string{},
-			wantErr: true,
+			name:            "EmptyAddr",
+			args:            []string{"-addr", " "},
+			env:             map[string]string{},
+			wantErr:         true,
+			wantErrContains: "addr must not be empty",
 		},
 	}
 
@@ -73,6 +77,9 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 				t.Fatalf("parseRuntimeConfig() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if tt.wantErr {
+				if tt.wantErrContains != "" && !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("parseRuntimeConfig() error = %v, want contains %q", err, tt.wantErrContains)
+				}
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
