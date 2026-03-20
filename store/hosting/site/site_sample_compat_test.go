@@ -135,7 +135,6 @@ func TestSite_ServeHTTP_SampleCompatibility(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.rq+"/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 

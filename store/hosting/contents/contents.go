@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path"
@@ -551,9 +552,7 @@ func (c *Content) requestSiteVariables(r *http.Request) map[string]any {
 	}
 
 	localized := make(map[string]any, len(c.siteVariables)+1)
-	for k, v := range c.siteVariables {
-		localized[k] = v
-	}
+	maps.Copy(localized, c.siteVariables)
 	if c.rootPath != nil {
 		localized["posts"] = c.rootPath.BuildSitePosts(c.now(), c.siteLatest)
 	}
@@ -875,9 +874,7 @@ func copyStringMap(src map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	dst := make(map[string]string, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 

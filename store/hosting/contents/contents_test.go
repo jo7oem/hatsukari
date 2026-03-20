@@ -47,7 +47,6 @@ func TestContent_OpenDir(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := contents.OpenContentDir(testFS, tt.path)
@@ -224,7 +223,6 @@ func TestContent_ServeHTTP(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		content, err := contents.OpenContentDir(testFS, tt.path)
 		if err != nil {
 			t.Fatalf("failed to open content dir: %v", err)
@@ -233,7 +231,6 @@ func TestContent_ServeHTTP(t *testing.T) {
 		server := httptest.NewServer(content)
 		t.Cleanup(server.Close)
 		for _, subTest := range tt.subtests {
-			subTest := subTest
 			t.Run(tt.name+"/"+subTest.name, func(t *testing.T) {
 				t.Parallel()
 				p := server.URL + subTest.url

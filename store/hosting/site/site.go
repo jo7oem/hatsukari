@@ -3,6 +3,7 @@ package site
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -90,9 +91,7 @@ func (s *Site) Config() SiteConfig {
 
 func (s *Site) Variables() map[string]any {
 	vars := make(map[string]any, len(s.vars)+1)
-	for key, value := range s.vars {
-		vars[key] = value
-	}
+	maps.Copy(vars, s.vars)
 	if s.root != nil {
 		vars["posts"] = s.root.BuildSitePosts(time.Now().In(s.location), s.latest)
 	}
