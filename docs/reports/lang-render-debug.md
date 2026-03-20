@@ -1,5 +1,8 @@
 # `failed to render` デバッグ手順（`?lang=` クエリ）
 
+## 位置づけ
+この文書は障害調査手順です。仕様の正本は `docs/requirements.md` を参照してください。
+
 ## 目的
 `http://127.0.0.1:8080/?lang=en` で `failed to render` が返るとき、原因を短時間で特定する。
 
