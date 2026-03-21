@@ -1,0 +1,19 @@
+{{define "header.html"}}
+<header>
+  <nav>
+    <ul>
+      {{$locale := index .site "currentLocale"}}
+      {{range .site.indexes}}
+      {{$title := index . "title"}}
+      {{$label := index $title $locale}}
+      {{if eq $label ""}}{{$label = index $title "default"}}{{end}}
+      <li>
+        <a href='{{index . "url"}}'>{{$label}}</a>
+      </li>
+      {{end}}
+    </ul>
+  </nav>
+</header>
+{{end}}
+
+

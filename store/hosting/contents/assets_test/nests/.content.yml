@@ -1,0 +1,7 @@
+registerIndexing: true
+indexTitle:
+    ja: "root"
+defaultLocale: ja
+templatesDir: templates
+contentsDir:
+    - "child"

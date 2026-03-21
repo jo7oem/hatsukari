@@ -1,116 +1,86 @@
 package main
 
 import (
-	"database/sql"
-	"embed"
-	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
-	"time"
+	"strings"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	_ "github.com/lib/pq"           //nolint:depguard
-	_ "github.com/mattn/go-sqlite3" //nolint:depguard
+	"github.com/jo7oem/hatsukari/logging"
+	"github.com/jo7oem/hatsukari/store/hosting/site"
 )
 
-const (
-	DB_POSTGRES = "postgres"
-	DB_SQLITE   = "sqlite3"
-)
-
-var useDB = DB_SQLITE
-
-var (
-	ErrLocked    = fmt.Errorf("already locked")
-	ErrUnLocked  = fmt.Errorf("already unlocked")
-	ErrNilConfig = fmt.Errorf("no config")
-)
-
-//go:embed db/migrations/*.sql
-var migrateFiles embed.FS
-
-func main() {
-	var db *sql.DB
-
-	var driver database.Driver
-
-	switch useDB {
-	case DB_POSTGRES:
-		tdb, err := sql.Open("postgres", "user=hatsukari dbname=hatsukari password=hatsukari sslmode=disable")
-		if err != nil {
-			panic(err)
-		}
-
-		db = tdb
-		defer db.Close()
-
-		driver, err = postgres.WithInstance(db, &postgres.Config{})
-		if err != nil {
-			panic(err)
-		}
-	case DB_SQLITE:
-		tdb, err := sql.Open("sqlite3", "hatsukari.db")
-		if err != nil {
-			panic(err)
-		}
-
-		db = tdb
-
-		defer db.Close()
-
-		driver, err = sqlite3.WithInstance(db, &sqlite3.Config{})
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	if err := migrateDB(driver); err != nil {
-		panic(err)
-	}
-
-	fmt.Print("Wake up!") //nolint:forbidigo
-
-	for {
-		fmt.Println("work!") //nolint:forbidigo
-		log.Println("error work!")
-		time.Sleep(1 * time.Second)
-	}
+type runtimeConfig struct {
+	siteDir string
+	addr    string
 }
 
-func migrateDB(driver database.Driver) error {
-	fSrc, err := iofs.New(migrateFiles, "db/migrations")
+func parseRuntimeConfig(args []string, getenv func(string) string) (runtimeConfig, error) {
+	fs := flag.NewFlagSet("hatsukari", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	defaultSiteDir := strings.TrimSpace(getenv("HATSUKARI_SITE_DIR"))
+	if defaultSiteDir == "" {
+		defaultSiteDir = "./sample"
+	}
+
+	defaultAddr := strings.TrimSpace(getenv("HATSUKARI_ADDR"))
+	if defaultAddr == "" {
+		port := strings.TrimSpace(getenv("PORT"))
+		if port != "" {
+			if strings.HasPrefix(port, ":") {
+				defaultAddr = port
+			} else {
+				defaultAddr = ":" + port
+			}
+		}
+	}
+	if defaultAddr == "" {
+		defaultAddr = ":8080"
+	}
+
+	var conf runtimeConfig
+	fs.StringVar(&conf.siteDir, "site", defaultSiteDir, "path to site directory")
+	fs.StringVar(&conf.addr, "addr", defaultAddr, "listen address")
+
+	if err := fs.Parse(args); err != nil {
+		return runtimeConfig{}, err
+	}
+
+	conf.siteDir = strings.TrimSpace(conf.siteDir)
+	conf.addr = strings.TrimSpace(conf.addr)
+	if conf.siteDir == "" {
+		return runtimeConfig{}, fmt.Errorf("siteDir must not be empty")
+	}
+	if conf.addr == "" {
+		return runtimeConfig{}, fmt.Errorf("addr must not be empty")
+	}
+
+	return conf, nil
+}
+
+func main() {
+	conf, err := parseRuntimeConfig(os.Args[1:], os.Getenv)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
-	m, err := migrate.NewWithInstance("iofs", fSrc, "sqlite3", driver)
+	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
+
+	siteMap, err := site.OpenSiteDir(conf.siteDir, logger)
 	if err != nil {
-		return err
+		logger.Error("failed to open site dir", err)
+		return
 	}
+	defer func() { _ = siteMap.Close() }()
 
-	v, _, err := m.Version()
-	if errors.Is(err, migrate.ErrNilVersion) {
-		return m.Up()
-	}
-
+	logger.Info("server starting", slog.String("siteDir", conf.siteDir), slog.String("addr", conf.addr))
+	err = http.ListenAndServe(conf.addr, siteMap)
 	if err != nil {
-		return err
-	}
-
-	if _, err := fSrc.Next(v); errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	if err := m.Up(); errors.Is(err, migrate.ErrNoChange) {
-		return nil
-	} else {
-		return err
+		log.Fatal(err)
 	}
 }

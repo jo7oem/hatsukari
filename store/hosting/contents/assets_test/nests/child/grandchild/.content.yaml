@@ -1,0 +1,6 @@
+registerIndexing: true
+indexTitle:
+    ja: "孫"
+defaultLocale: ja
+templatesDir: templates
+contentsDir: []

@@ -1,0 +1,8 @@
+registerIndexing: true
+defaultLocale: en
+priority: -1
+indexTitle:
+  en: "Bee"
+templatesDir: templates
+contentsDir: []
+

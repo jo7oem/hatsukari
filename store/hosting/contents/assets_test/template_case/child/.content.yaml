@@ -1,0 +1,5 @@
+registerIndexing: true
+
+contentsDir: []
+templatesDir: templates
+defaultLocale: ja

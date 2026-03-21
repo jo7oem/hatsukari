@@ -1,0 +1,5 @@
+title: "サンプル"
+templatesDir: "templates"
+rootContentDir: "./"
+Variables:
+  title: "サンプルタイトル"

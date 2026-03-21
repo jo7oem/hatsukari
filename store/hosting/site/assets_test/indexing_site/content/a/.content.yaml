@@ -1,0 +1,8 @@
+registerIndexing: true
+defaultLocale: ja
+priority: 10
+indexTitle:
+  ja: "エー"
+templatesDir: templates
+contentsDir: []
+

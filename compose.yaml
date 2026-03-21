@@ -1,18 +1,21 @@
 ---
 services:
   app:
-    image: "golang:1.21"
+    image: "golang:1.26"
     command: "./dev_tools/bin/air -c .air.toml"
-    working_dir: /go/src/github.com/jo7oem/hashukari
+    working_dir: /app
     volumes:
-      - ./:/go/src/github.com/jo7oem/hashukari
+      - ./:/app
+      - modcache:/go/pkg/mod
+      - build_cache:/root/.cache/go-build
+    environment:
+     SERVER_ADDRESS: ":8080"
+     CONFIG_PATH: "hatsukari.yaml"
+     WORK_DIR: "sample"
     ports:
         - "2345:2345"
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: hatsukari
-      POSTGRES_PASSWORD: hatsukari
-      POSTGRES_DB: hatsukari
-    ports:
-        - "5432:5432"
+        - "8080:8080"
+volumes:
+  modcache:
+  build_cache:
+

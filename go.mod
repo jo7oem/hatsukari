@@ -1,15 +1,12 @@
 module github.com/jo7oem/hatsukari
 
-go 1.21.3
+go 1.26
 
 require (
-	github.com/golang-migrate/migrate/v4 v4.17.0
-	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/google/go-cmp v0.7.0
+	github.com/yuin/goldmark v1.7.17
+	github.com/yuin/goldmark-meta v1.1.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
-require (
-	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-)
+require gopkg.in/yaml.v2 v2.3.0 // indirect
