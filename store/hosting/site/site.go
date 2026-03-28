@@ -15,12 +15,12 @@ import (
 )
 
 type SiteConfig struct {
-	Title          string   `yaml:"title"`
-	Timezone       string   `yaml:"timezone,omitempty"`
-	Latest         *int     `yaml:"latest,omitempty"`
-	TemplatesDir   string   `yaml:"templatesDir"`
-	RootContentDir string   `yaml:"rootContentDir"`
-	ContentsDir    []string `yaml:"contentsDir,omitempty"`
+	Title            string   `yaml:"title"`
+	Timezone         string   `yaml:"timezone,omitempty"`
+	Latest           *int     `yaml:"latest,omitempty"`
+	SiteTemplatesDir string   `yaml:"siteTemplatesDir"`
+	RootContentDir   string   `yaml:"rootContentDir"`
+	ContentsDir      []string `yaml:"contentsDir,omitempty"`
 }
 
 func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {

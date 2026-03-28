@@ -1,4 +1,4 @@
 title: "Indexing Test"
-templatesDir: "templates"
+siteTtemplatesDir: "templates"
 rootContentDir: "content"
 

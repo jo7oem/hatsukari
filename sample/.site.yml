@@ -1,5 +1,5 @@
 title: "サンプル"
-templatesDir: "templates"
+siteTemplatesDir: "site_templates"
 rootContentDir: "./"
 Variables:
   title: "サンプルタイトル"
