@@ -20,6 +20,9 @@ func renderPageTemplate(templateFS fs.FS, templateName string, data map[string]a
 		}
 		files = append(files, entry.Name())
 	}
+	if len(files) == 0 {
+		return fallback, nil
+	}
 
 	tmpl, err := template.New("templates").Option("missingkey=zero").ParseFS(templateFS, files...)
 	if err != nil {

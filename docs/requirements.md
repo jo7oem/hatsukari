@@ -186,15 +186,31 @@
 ### RQ-304 Content 単位でテンプレートを解決できること
 - 仕様（期待）
   - `templatesDir` 配下の `template.<ext>` を使う。
+  - 描画順序は `render単位展開 -> Content テンプレート -> Site テンプレート` とする。
 - 現実装（現状）
   - `resolveTemplate` と `resolveNamedTemplate`。
+  - `renderer.Render` が Content テンプレート適用後、必要に応じて Site テンプレートを適用する。
   - `templatesDir` が絶対パスまたは上位参照ならエラー。
 - 実装根拠
-  - `resolveNamedTemplate`。
+  - `resolveNamedTemplate`, `renderer.Render`。
 - テスト根拠
-  - `TestContent_ServeHTTP`（template_case）。
+  - `TestContent_ServeHTTP`（template_case）, `TestSite_ServeHTTP_SiteTemplatePipeline`。
 - 差分
-  - `templatesDir` の不正値エラーを直接検証するテストは未整備。
+  - なし。
+
+### RQ-310 Content 単位でサイトテンプレート適用を無効化できること
+- 仕様（期待）
+  - `disableSiteTemplate: true` の Content はサイトテンプレート適用を行わない。
+  - 適用可否は Content ごとに独立し、親子で自動継承しない。
+- 現実装（現状）
+  - `contentConfig.DisableSiteTemplate` で判定し、true の Content はサイトテンプレート段をスキップする。
+  - `tags.md` 経路にも同一判定を適用する。
+- 実装根拠
+  - `customRoutingHandler`, `renderTagsPage`, `resolveSiteTemplate`。
+- テスト根拠
+  - `TestSite_ServeHTTP_SiteTemplatePipeline`（`/naked/` と `/posts/tags/`）。
+- 差分
+  - なし。
 
 ### RQ-305 posts Content の記事メタを収集できること
 - 仕様（期待）
@@ -237,13 +253,15 @@
 ### RQ-308 tags 一覧/詳細ページを動的生成できること
 - 仕様（期待）
   - `/posts/tags/` と `/posts/tags/<key>` を `tags.md` で描画する。
+  - `disableSiteTemplate != true` の場合、`tags.md` の描画結果へサイトテンプレート段を適用する。
 - 現実装（現状）
   - `tryServeTagsPage` と `renderTagsPage` で処理。
   - 未知タグまたは対象 0 件は 404、テンプレート欠落は 500。
+  - `renderTagsPage` でも通常ページと同様にサイトテンプレート判定を行う。
 - 実装根拠
   - `tryServeTagsPage`, `renderTagsPage`。
 - テスト根拠
-  - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`。
+  - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`, `TestSite_ServeHTTP_SiteTemplatePipeline`。
 - 差分
   - `tags.md` 欠落時 500 の直接テストは未整備。
 
@@ -274,6 +292,26 @@
   - `TestSite_OpenDir_Timezone`。
 - 差分
   - `OpenSiteDir` は `logger` に `nil` を許可しない。
+
+### RQ-406 siteTemplatesDir を安全に解決できること
+- 仕様（期待）
+  - `siteTemplatesDir` はサイトルート基準の相対パスのみ許可する。
+  - サイトテンプレートのエントリーポイントは `siteTemplate` で指定できる。
+  - `siteTemplate` は `siteTemplatesDir` 直下のファイル名のみ許可し、ネストパスは許可しない。
+  - `../` と絶対パスは起動エラーにする。
+  - `siteTemplate` 未指定時は `site-template.<ext>`（次点で `site-template.html`）を探索する。
+  - `siteTemplate` も `../` と絶対パスを禁止する。
+  - 解決したエントリーポイントが未配置の場合はフォールバックとしてサイトテンプレート段をスキップする。
+- 現実装（現状）
+  - `validateSiteTemplatesDir` で不正パスを拒否する。
+  - `validateTemplateEntryPoint` で `siteTemplate` の不正値を拒否する。
+  - `resolveSiteTemplateFS` は存在しないディレクトリを非エラー扱いにし、適用段を無効化する。
+- 実装根拠
+  - `openSiteConfig`, `validateSiteTemplatesDir`, `validateTemplateEntryPoint`, `resolveSiteTemplate`, `Site.resolveSiteTemplateFS`。
+- テスト根拠
+  - `TestSite_OpenDir_InvalidSiteTemplatesDir`, `TestSite_OpenDir_InvalidSiteTemplateEntryPoint`, `TestSite_ServeHTTP_SiteTemplateMissingFallback`, `TestSite_ServeHTTP_SiteTemplateEntryPointFromConfig`。
+- 差分
+  - なし。
 
 ### RQ-402 `site.indexes` を優先度順に公開できること
 - 仕様（期待）

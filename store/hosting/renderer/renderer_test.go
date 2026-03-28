@@ -61,6 +61,24 @@ hello {{.title}}
 			},
 			want: "<p>plain</p>\n",
 		},
+		{
+			name: "ApplyContentThenSiteTemplate",
+			render: func() *Renderer {
+				source := []byte("---\ntitle: order\n---\ncontent\n")
+				contentTemplateFS := fstest.MapFS{
+					"template.md": &fstest.MapFile{Data: []byte("CONTENT|BODY={{.contents.body}}|META={{.page.meta.title}}")},
+				}
+				siteTemplateFS := fstest.MapFS{
+					"site-template.md": &fstest.MapFile{Data: []byte("SITE|BODY={{.contents.body}}|META={{.page.meta.title}}")},
+				}
+				return NewRenderer(
+					source,
+					WithTemplateFS(contentTemplateFS, "template.md"),
+					WithSiteTemplateFS(siteTemplateFS, "site-template.md"),
+				)
+			},
+			contains: []string{"SITE|BODY=CONTENT|BODY=<p>content</p>", "META=order"},
+		},
 	}
 
 	for _, tt := range tests {

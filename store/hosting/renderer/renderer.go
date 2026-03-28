@@ -27,8 +27,10 @@ type Option func(*Renderer)
 
 type Renderer struct {
 	source            []byte
-	templateFS        fs.FS
-	templateName      string
+	contentTemplateFS fs.FS
+	contentTemplate   string
+	siteTemplateFS    fs.FS
+	siteTemplate      string
 	contentsVariables map[string]any
 	contentsPosts     any
 	siteVariables     map[string]any
@@ -37,8 +39,15 @@ type Renderer struct {
 
 func WithTemplateFS(templateFS fs.FS, templateName string) Option {
 	return func(r *Renderer) {
-		r.templateFS = templateFS
-		r.templateName = templateName
+		r.contentTemplateFS = templateFS
+		r.contentTemplate = templateName
+	}
+}
+
+func WithSiteTemplateFS(templateFS fs.FS, templateName string) Option {
+	return func(r *Renderer) {
+		r.siteTemplateFS = templateFS
+		r.siteTemplate = templateName
 	}
 }
 
@@ -91,10 +100,6 @@ func (r *Renderer) Render() ([]byte, error) {
 		return nil, err
 	}
 
-	if r.templateFS == nil || r.templateName == "" {
-		return htmlBuffer.Bytes(), nil
-	}
-
 	pageData := map[string]any{
 		"contents": map[string]any{
 			"body":      template.HTML(htmlBuffer.String()),
@@ -107,7 +112,24 @@ func (r *Renderer) Render() ([]byte, error) {
 		},
 	}
 
-	return renderPageTemplate(r.templateFS, r.templateName, pageData, htmlBuffer.Bytes())
+	out := htmlBuffer.Bytes()
+	if r.contentTemplateFS != nil && r.contentTemplate != "" {
+		out, err = renderPageTemplate(r.contentTemplateFS, r.contentTemplate, pageData, out)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	contentsData, _ := pageData["contents"].(map[string]any)
+	contentsData["body"] = template.HTML(string(out))
+	if r.siteTemplateFS != nil && r.siteTemplate != "" {
+		out, err = renderPageTemplate(r.siteTemplateFS, r.siteTemplate, pageData, out)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return out, nil
 }
 
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {

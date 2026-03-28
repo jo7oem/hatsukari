@@ -1,7 +1,9 @@
 package site
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -19,6 +21,7 @@ type SiteConfig struct {
 	Timezone         string   `yaml:"timezone,omitempty"`
 	Latest           *int     `yaml:"latest,omitempty"`
 	SiteTemplatesDir string   `yaml:"siteTemplatesDir"`
+	SiteTemplate     string   `yaml:"siteTemplate,omitempty"`
 	RootContentDir   string   `yaml:"rootContentDir"`
 	ContentsDir      []string `yaml:"contentsDir,omitempty"`
 }
@@ -120,7 +123,36 @@ func (s *Site) Setup() error {
 	s.latest = siteLatest
 	root.SetSiteVariables(s.vars)
 
+	siteTemplateFS, err := s.resolveSiteTemplateFS()
+	if err != nil {
+		return err
+	}
+	root.SetSiteTemplateFS(siteTemplateFS)
+	root.SetSiteTemplateEntryPoint(s.config.SiteTemplate)
+
 	mux.Handle("/", root)
 	s.mux = mux
 	return nil
+}
+
+func (s *Site) resolveSiteTemplateFS() (fs.FS, error) {
+	templatesDir := strings.TrimSpace(s.config.SiteTemplatesDir)
+	if templatesDir == "" {
+		return nil, nil
+	}
+
+	baseFS := s.fs.FS()
+	if templatesDir == "." {
+		return baseFS, nil
+	}
+
+	templateFS, err := fs.Sub(baseFS, templatesDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return templateFS, nil
 }

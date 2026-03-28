@@ -137,6 +137,8 @@ type Content struct {
 	children []*Content
 
 	siteVariables  map[string]any
+	siteTemplateFS fs.FS
+	siteTemplate   string
 	logger         *logging.Logger
 	timezone       *time.Location
 	siteLatest     int
@@ -256,6 +258,13 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		siteTemplateFS, siteTemplateName, err := c.resolveSiteTemplate(resolvedPath)
+		if err != nil {
+			c.logError("failed to resolve site template", err, slog.String("path", resolvedPath))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		opts := []renderer.Option{
 			renderer.WithContentsVariables(c.config.Variables),
 			renderer.WithContentsPosts(c.requestContentsPosts()),
@@ -264,6 +273,9 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if templateFS != nil && templateName != "" {
 			opts = append(opts, renderer.WithTemplateFS(templateFS, templateName))
+		}
+		if siteTemplateFS != nil && siteTemplateName != "" {
+			opts = append(opts, renderer.WithSiteTemplateFS(siteTemplateFS, siteTemplateName))
 		}
 
 		render := renderer.NewRenderer(b, opts...)
@@ -314,16 +326,75 @@ func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey 
 		return fmt.Errorf("tags template not found")
 	}
 
-	render := renderer.NewRenderer(
-		[]byte(""),
+	siteTemplateFS, siteTemplateName, err := c.resolveSiteTemplate("tags.md")
+	if err != nil {
+		return err
+	}
+
+	opts := []renderer.Option{
 		renderer.WithTemplateFS(templateFS, templateName),
 		renderer.WithContentsVariables(c.config.Variables),
 		renderer.WithContentsPosts(postsData),
 		renderer.WithSiteVariables(c.requestSiteVariables(r)),
 		renderer.WithLogger(c.logger),
+	}
+	if siteTemplateFS != nil && siteTemplateName != "" {
+		opts = append(opts, renderer.WithSiteTemplateFS(siteTemplateFS, siteTemplateName))
+	}
+
+	render := renderer.NewRenderer(
+		[]byte(""),
+		opts...,
 	)
 	render.ServeHTTP(w, r)
 	return nil
+}
+
+func (c *Content) resolveSiteTemplate(resolvedPath string) (fs.FS, string, error) {
+	if c.config.DisableSiteTemplate {
+		return nil, "", nil
+	}
+	if c.siteTemplateFS == nil {
+		return nil, "", nil
+	}
+
+	ext := path.Ext(resolvedPath)
+	if ext == "" {
+		return nil, "", nil
+	}
+
+	candidates := make([]string, 0, 2)
+	if c.siteTemplate != "" {
+		candidates = append(candidates, c.siteTemplate)
+	} else {
+		candidates = append(candidates, "site-template"+ext)
+		if ext != ".html" {
+			candidates = append(candidates, "site-template.html")
+		}
+	}
+
+	for _, templateName := range candidates {
+		f, err := c.siteTemplateFS.Open(templateName)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return nil, "", err
+		}
+
+		stat, err := f.Stat()
+		_ = f.Close()
+		if err != nil {
+			return nil, "", err
+		}
+		if stat.IsDir() {
+			continue
+		}
+
+		return c.siteTemplateFS, templateName, nil
+	}
+
+	return nil, "", nil
 }
 
 func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
@@ -511,6 +582,20 @@ func (c *Content) SetSiteVariables(siteVariables map[string]any) {
 	c.siteVariables = siteVariables
 	for _, child := range c.children {
 		child.SetSiteVariables(siteVariables)
+	}
+}
+
+func (c *Content) SetSiteTemplateFS(siteTemplateFS fs.FS) {
+	c.siteTemplateFS = siteTemplateFS
+	for _, child := range c.children {
+		child.SetSiteTemplateFS(siteTemplateFS)
+	}
+}
+
+func (c *Content) SetSiteTemplateEntryPoint(siteTemplate string) {
+	c.siteTemplate = strings.TrimSpace(siteTemplate)
+	for _, child := range c.children {
+		child.SetSiteTemplateEntryPoint(siteTemplate)
 	}
 }
 
@@ -942,13 +1027,14 @@ func (c *Content) now() time.Time {
 }
 
 type contentConfig struct {
-	RegisterIndexing bool              `yaml:"registerIndexing,omitempty"`
-	ContentType      string            `yaml:"contentType,omitempty"`
-	Priority         *int              `yaml:"priority,omitempty"`
-	Latest           *int              `yaml:"latest,omitempty"`
-	TemplatesDir     string            `yaml:"templatesDir,omitempty"`
-	DefaultLocale    string            `yaml:"defaultLocale,omitempty"`
-	IndexTitle       map[string]string `yaml:"indexTitle,omitempty"`
-	ContentsDir      []string          `yaml:"contentsDir,omitempty"`
-	Variables        map[string]any    `yaml:"variables,omitempty"`
+	RegisterIndexing    bool              `yaml:"registerIndexing,omitempty"`
+	ContentType         string            `yaml:"contentType,omitempty"`
+	DisableSiteTemplate bool              `yaml:"disableSiteTemplate,omitempty"`
+	Priority            *int              `yaml:"priority,omitempty"`
+	Latest              *int              `yaml:"latest,omitempty"`
+	TemplatesDir        string            `yaml:"templatesDir,omitempty"`
+	DefaultLocale       string            `yaml:"defaultLocale,omitempty"`
+	IndexTitle          map[string]string `yaml:"indexTitle,omitempty"`
+	ContentsDir         []string          `yaml:"contentsDir,omitempty"`
+	Variables           map[string]any    `yaml:"variables,omitempty"`
 }

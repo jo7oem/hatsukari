@@ -46,6 +46,18 @@ go run ./main.go -site ./sample -addr :8080
 - Content 設定: `.content.yaml`（優先）または `.content.yml`
 - tags 設定（posts 専用）: `.tag.yaml`（優先）または `.tag.yml`
 
+サイト全体テンプレートを使う場合は、`.site.yml` で `siteTemplatesDir` と `siteTemplate` を指定します。
+
+```yaml
+title: "サンプル"
+siteTemplatesDir: "site_templates"
+siteTemplate: "site-template.html"
+rootContentDir: "./"
+```
+
+- `siteTemplate` は `siteTemplatesDir` 直下のファイル名を指定します。
+- 未指定時は `site-template.<ext>`（次点で `site-template.html`）を自動探索します。
+
 主要キーの詳細仕様は `docs/requirements.md` を参照してください。
 
 ## テスト

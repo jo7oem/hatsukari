@@ -192,6 +192,269 @@ func TestSite_OpenDir_ConfigPriority(t *testing.T) {
 	}
 }
 
+func TestSite_OpenDir_InvalidSiteTemplatesDir(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		siteTemplatesDir string
+	}{
+		{name: "ParentTraversal", siteTemplatesDir: "../bad"},
+		{name: "AbsolutePath", siteTemplatesDir: "/bad"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteDir := t.TempDir()
+			writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"test\"\nsiteTemplatesDir: \""+tt.siteTemplatesDir+"\"\nrootContentDir: \"content\"\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir: []\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+
+			_, err := OpenSiteDir(siteDir, newDiscardLogger())
+			if err == nil {
+				t.Fatal("OpenSiteDir() error = nil, want invalid siteTemplatesDir error")
+			}
+			if !strings.Contains(err.Error(), "invalid siteTemplatesDir") {
+				t.Fatalf("OpenSiteDir() error = %v, want invalid siteTemplatesDir", err)
+			}
+		})
+	}
+}
+
+func TestSite_OpenDir_InvalidSiteTemplateEntryPoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		siteTemplate string
+	}{
+		{name: "ParentTraversal", siteTemplate: "../layout.html"},
+		{name: "AbsolutePath", siteTemplate: "/layout.html"},
+		{name: "CurrentDir", siteTemplate: "."},
+		{name: "NestedPath", siteTemplate: "layout/main.html"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteDir := t.TempDir()
+			writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"test\"\nsiteTemplatesDir: \"site_templates\"\nsiteTemplate: \""+tt.siteTemplate+"\"\nrootContentDir: \"content\"\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir: []\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+
+			_, err := OpenSiteDir(siteDir, newDiscardLogger())
+			if err == nil {
+				t.Fatal("OpenSiteDir() error = nil, want invalid siteTemplate error")
+			}
+			if !strings.Contains(err.Error(), "invalid siteTemplate") {
+				t.Fatalf("OpenSiteDir() error = %v, want invalid siteTemplate", err)
+			}
+		})
+	}
+}
+
+func TestSite_ServeHTTP_SiteTemplatePipeline(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"pipeline\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-template.md"), "SITE|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
+
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir:\n  - posts\n  - naked\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "ROOT|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "---\ntitle: root\n---\nroot\n")
+
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "POSTS|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "TAGS|COUNT={{len .contents.posts.tags}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: posts\n---\nposts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "entry.md"), "---\ntitle: entry\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\nsummary: entry\ntags: [\"demo\"]\n---\nentry\n")
+
+	writeTestFile(t, filepath.Join(siteDir, "content", "naked", ".content.yaml"), "disableSiteTemplate: true\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "naked", "templates", "template.md"), "NAKED|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "naked", "index.md"), "---\ntitle: naked\n---\nnaked\n")
+
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	tests := []struct {
+		name        string
+		urlPath     string
+		wantStatus  int
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:       "RootAppliesContentThenSite",
+			urlPath:    "/",
+			wantStatus: http.StatusOK,
+			contains:   []string{"SITE|BODY=ROOT|BODY=<p>root</p>", "META=root"},
+		},
+		{
+			name:       "PostsTagsAlsoApplySiteTemplate",
+			urlPath:    "/posts/tags/",
+			wantStatus: http.StatusOK,
+			contains:   []string{"SITE|BODY=TAGS|COUNT=1", "META="},
+		},
+		{
+			name:        "DisableSiteTemplatePerContent",
+			urlPath:     "/naked/",
+			wantStatus:  http.StatusOK,
+			contains:    []string{"NAKED|BODY=<p>naked</p>", "META=naked"},
+			notContains: []string{"SITE|BODY="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := server.Client().Get(server.URL + tt.urlPath)
+			if err != nil {
+				t.Fatalf("GET %s error = %v", tt.urlPath, err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if got := resp.StatusCode; got != tt.wantStatus {
+				t.Fatalf("GET %s status = %d, want %d", tt.urlPath, got, tt.wantStatus)
+			}
+
+			body, _ := io.ReadAll(resp.Body)
+			bodyStr := string(body)
+			for _, fragment := range tt.contains {
+				if !strings.Contains(bodyStr, fragment) {
+					t.Fatalf("GET %s body does not contain %q\nbody=%s", tt.urlPath, fragment, bodyStr)
+				}
+			}
+			for _, fragment := range tt.notContains {
+				if strings.Contains(bodyStr, fragment) {
+					t.Fatalf("GET %s body should not contain %q\nbody=%s", tt.urlPath, fragment, bodyStr)
+				}
+			}
+		})
+	}
+}
+
+func TestSite_ServeHTTP_SiteTemplateMissingFallback(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"fallback\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
+
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "CONTENT|BODY=<p>hello</p>") {
+		t.Fatalf("GET / body=%s, want content template result", bodyStr)
+	}
+	if strings.Contains(bodyStr, "SITE|BODY=") {
+		t.Fatalf("GET / body should not contain site template wrapper\nbody=%s", bodyStr)
+	}
+}
+
+func TestSite_ServeHTTP_SiteTemplateHTMLFallback(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"html-fallback\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-template.html"), "SITE_HTML|BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
+
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "SITE_HTML|BODY=CONTENT|BODY=<p>hello</p>") {
+		t.Fatalf("GET / body=%s, want site-template.html fallback result", bodyStr)
+	}
+}
+
+func TestSite_ServeHTTP_SiteTemplateEntryPointFromConfig(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"entry-point\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nsiteTemplate: \"site-layout.html\"\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-layout.html"), "SITE_ENTRY|BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
+
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "SITE_ENTRY|BODY=CONTENT|BODY=<p>hello</p>") {
+		t.Fatalf("GET / body=%s, want configured site template entry point result", bodyStr)
+	}
+}
+
 func siteYAMLForTest(timezone string) string {
 	if timezone == "" {
 		return "title: \"test\"\nrootContentDir: \"content\"\n"
