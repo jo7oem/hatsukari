@@ -3,5 +3,6 @@ indexTitle:
     ja: "サンプル"
 defaultLocale: ja
 templatesDir: templates
+contentTemplate: template.md
 contentsDir:
     - "posts"

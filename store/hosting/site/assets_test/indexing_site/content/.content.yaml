@@ -3,6 +3,7 @@ defaultLocale: ja
 indexTitle:
   ja: "ルート"
 templatesDir: templates
+contentTemplate: template.md
 contentsDir:
   - c
   - b

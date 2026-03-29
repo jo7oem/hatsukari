@@ -2,4 +2,5 @@ registerIndexing: true
 
 contentsDir: []
 templatesDir: templates
+contentTemplate: template.md
 defaultLocale: ja

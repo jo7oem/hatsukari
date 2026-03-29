@@ -18,6 +18,8 @@
 5. サイトテンプレート未配置時は自動フォールバックとしてサイト段をスキップする
 6. `tags.md` にもサイト全体テンプレートを適用する
 7. サイトテンプレートのエントリーポイントを `.site.yml` の `siteTemplate` で定義できる
+8. Content テンプレートのエントリーポイントを `.content.yaml` の `contentTemplate` で定義できる
+9. `contentTemplate` 未指定時は `template.html` を既定値として使用する
 
 ## 実装タスク
 - [x] `siteTemplatesDir` バリデーションを `site` 設定読み込みへ追加
@@ -28,3 +30,5 @@
 - [x] サイトテンプレート未配置フォールバックを実装
 - [x] 主要テスト（順序、オプトアウト、不正パス、未配置、tags）を追加
 - [x] `siteTemplate` 設定でエントリーポイントを切り替え可能にする
+- [x] `contentTemplate` 設定で Content テンプレートのエントリーポイントを切り替え可能にする
+- [x] `contentTemplate` 未指定時の既定値を `template.html` にする

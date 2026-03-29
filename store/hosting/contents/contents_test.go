@@ -319,6 +319,84 @@ func TestContent_ServeHTTP_InvalidTemplatesDir(t *testing.T) {
 	}
 }
 
+func TestContent_ServeHTTP_DefaultContentTemplateHTML(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeContentTestFile(t, filepath.Join(siteDir, ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeContentTestFile(t, filepath.Join(siteDir, "templates", "template.html"), "DEFAULT_HTML|BODY={{.contents.body}}\n")
+	writeContentTestFile(t, filepath.Join(siteDir, "index.md"), "hello\n")
+
+	root, err := os.OpenRoot(siteDir)
+	if err != nil {
+		t.Fatalf("os.OpenRoot() error = %v", err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+
+	content, err := contents.OpenContentDir(root, ".", newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenContentDir() error = %v", err)
+	}
+
+	server := httptest.NewServer(content)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET / status = %d, want %d", got, want)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "DEFAULT_HTML|BODY=<p>hello</p>") {
+		t.Fatalf("GET / body=%s, want default template.html result", bodyStr)
+	}
+}
+
+func TestContent_OpenDir_InvalidContentTemplateEntryPoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		contentTemplate string
+	}{
+		{name: "ParentTraversal", contentTemplate: "../layout.html"},
+		{name: "AbsolutePath", contentTemplate: "/layout.html"},
+		{name: "CurrentDir", contentTemplate: "."},
+		{name: "NestedPath", contentTemplate: "layout/main.html"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteDir := t.TempDir()
+			writeContentTestFile(t, filepath.Join(siteDir, ".content.yaml"), "templatesDir: templates\ncontentTemplate: "+tt.contentTemplate+"\ncontentsDir: []\n")
+			writeContentTestFile(t, filepath.Join(siteDir, "index.md"), "hello\n")
+
+			root, err := os.OpenRoot(siteDir)
+			if err != nil {
+				t.Fatalf("os.OpenRoot() error = %v", err)
+			}
+			t.Cleanup(func() { _ = root.Close() })
+
+			_, err = contents.OpenContentDir(root, ".", newDiscardLogger())
+			if err == nil {
+				t.Fatal("OpenContentDir() error = nil, want invalid contentTemplate error")
+			}
+			if !strings.Contains(err.Error(), "invalid contentTemplate") {
+				t.Fatalf("OpenContentDir() error = %v, want invalid contentTemplate", err)
+			}
+		})
+	}
+}
+
 func TestContent_OpenDir_PostsReservedPath(t *testing.T) {
 	t.Parallel()
 

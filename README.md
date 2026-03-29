@@ -18,7 +18,7 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 ## 外形的にできること
 - Content ツリー配信: `.content.yaml` の `contentsDir` で階層化した配信
 - Markdown 配信: Front Matter 抽出、本文のメタ展開、HTML 変換
-- テンプレート適用: `templatesDir` 内 `template.<ext>` と部分テンプレート
+- テンプレート適用: `templatesDir` 内の `contentTemplate`（未指定時 `template.html`）と部分テンプレート
 - ナビ生成: `registerIndexing` から `site.indexes` を生成
 - posts 機能: `site.posts` / `contents.posts` の一覧、latest、tags、byTag
 - tags ページ: `/posts/tags/` と `/posts/tags/<key>` を `tags.md` で描画
@@ -57,6 +57,16 @@ rootContentDir: "./"
 
 - `siteTemplate` は `siteTemplatesDir` 直下のファイル名を指定します。
 - 未指定時は `site-template.<ext>`（次点で `site-template.html`）を自動探索します。
+
+Content 側は `.content.yaml` の `contentTemplate` でエントリーポイントを指定できます。
+
+```yaml
+templatesDir: templates
+contentTemplate: template.md
+```
+
+- `contentTemplate` 未指定時は `template.html` を既定で使用します。
+- `contentTemplate` は `templatesDir` 直下のファイル名のみ許可します（`../` やネストパスは不可）。
 
 主要キーの詳細仕様は `docs/requirements.md` を参照してください。
 

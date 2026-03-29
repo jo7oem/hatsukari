@@ -5,4 +5,5 @@ indexTitle:
     en: "Posts"
 defaultLocale: ja
 templatesDir: templates
+contentTemplate: template.md
 contentsDir: []

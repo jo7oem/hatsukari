@@ -185,12 +185,14 @@
 
 ### RQ-304 Content 単位でテンプレートを解決できること
 - 仕様（期待）
-  - `templatesDir` 配下の `template.<ext>` を使う。
+  - `templatesDir` 配下の `contentTemplate` で指定したファイルを使う。
+  - `contentTemplate` 未指定時は `template.html` を使う。
   - 描画順序は `render単位展開 -> Content テンプレート -> Site テンプレート` とする。
 - 現実装（現状）
-  - `resolveTemplate` と `resolveNamedTemplate`。
+  - `resolveTemplate` は `contentTemplate`（未指定時 `template.html`）を解決し、`resolveNamedTemplate` で存在確認する。
   - `renderer.Render` が Content テンプレート適用後、必要に応じて Site テンプレートを適用する。
   - `templatesDir` が絶対パスまたは上位参照ならエラー。
+  - `contentTemplate` は `templatesDir` 直下のファイル名のみ許可し、`../`・絶対パス・ネストパスを拒否する。
 - 実装根拠
   - `resolveNamedTemplate`, `renderer.Render`。
 - テスト根拠

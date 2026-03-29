@@ -1,6 +1,7 @@
 registerIndexing: true
 defaultLocale: ja
 templatesDir: templates
+contentTemplate: template.md
 contentsDir:
   - child
   - raw

@@ -398,11 +398,11 @@ func (c *Content) resolveSiteTemplate(resolvedPath string) (fs.FS, string, error
 }
 
 func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
-	ext := path.Ext(resolvedPath)
-	if ext == "" {
-		return nil, "", nil
+	templateName := strings.TrimSpace(c.config.ContentTemplate)
+	if templateName == "" {
+		templateName = "template.html"
 	}
-	return c.resolveNamedTemplate("template" + ext)
+	return c.resolveNamedTemplate(templateName)
 }
 
 func (c *Content) resolveNamedTemplate(templateName string) (fs.FS, string, error) {
@@ -471,6 +471,12 @@ func (c *Content) setup() error {
 	if err := yaml.NewDecoder(confFile).Decode(&c.config); err != nil {
 		return fmt.Errorf("parse error in content config: %w", err)
 	}
+
+	contentTemplate, err := validateTemplateEntryPoint(c.config.ContentTemplate, "contentTemplate")
+	if err != nil {
+		return err
+	}
+	c.config.ContentTemplate = contentTemplate
 
 	if c.isPostsContent() {
 		definitions, err := c.loadTagDefinitions()
@@ -1029,6 +1035,7 @@ func (c *Content) now() time.Time {
 type contentConfig struct {
 	RegisterIndexing    bool              `yaml:"registerIndexing,omitempty"`
 	ContentType         string            `yaml:"contentType,omitempty"`
+	ContentTemplate     string            `yaml:"contentTemplate,omitempty"`
 	DisableSiteTemplate bool              `yaml:"disableSiteTemplate,omitempty"`
 	Priority            *int              `yaml:"priority,omitempty"`
 	Latest              *int              `yaml:"latest,omitempty"`
@@ -1037,4 +1044,21 @@ type contentConfig struct {
 	IndexTitle          map[string]string `yaml:"indexTitle,omitempty"`
 	ContentsDir         []string          `yaml:"contentsDir,omitempty"`
 	Variables           map[string]any    `yaml:"variables,omitempty"`
+}
+
+func validateTemplateEntryPoint(raw, key string) (string, error) {
+	entryPoint := strings.TrimSpace(raw)
+	if entryPoint == "" {
+		return "", nil
+	}
+
+	clean := path.Clean(entryPoint)
+	if clean == "." || strings.HasPrefix(clean, "/") || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("invalid %s: %s", key, raw)
+	}
+	if strings.Contains(clean, "/") {
+		return "", fmt.Errorf("invalid %s: %s", key, raw)
+	}
+
+	return clean, nil
 }

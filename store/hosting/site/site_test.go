@@ -264,17 +264,17 @@ func TestSite_ServeHTTP_SiteTemplatePipeline(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"pipeline\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-template.md"), "SITE|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
 
-	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir:\n  - posts\n  - naked\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentTemplate: template.md\ncontentsDir:\n  - posts\n  - naked\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "ROOT|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "---\ntitle: root\n---\nroot\n")
 
-	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "POSTS|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "TAGS|COUNT={{len .contents.posts.tags}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: posts\n---\nposts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "entry.md"), "---\ntitle: entry\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\nsummary: entry\ntags: [\"demo\"]\n---\nentry\n")
 
-	writeTestFile(t, filepath.Join(siteDir, "content", "naked", ".content.yaml"), "disableSiteTemplate: true\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "naked", ".content.yaml"), "disableSiteTemplate: true\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "naked", "templates", "template.md"), "NAKED|BODY={{.contents.body}}|META={{.page.meta.title}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "naked", "index.md"), "---\ntitle: naked\n---\nnaked\n")
 
@@ -350,7 +350,7 @@ func TestSite_ServeHTTP_SiteTemplateMissingFallback(t *testing.T) {
 
 	siteDir := t.TempDir()
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"fallback\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
 
@@ -389,7 +389,7 @@ func TestSite_ServeHTTP_SiteTemplateHTMLFallback(t *testing.T) {
 	siteDir := t.TempDir()
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"html-fallback\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-template.html"), "SITE_HTML|BODY={{.contents.body}}\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
 
@@ -425,7 +425,7 @@ func TestSite_ServeHTTP_SiteTemplateEntryPointFromConfig(t *testing.T) {
 	siteDir := t.TempDir()
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"entry-point\"\ntimezone: \"UTC\"\nsiteTemplatesDir: \"site_templates\"\nsiteTemplate: \"site-layout.html\"\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "site_templates", "site-layout.html"), "SITE_ENTRY|BODY={{.contents.body}}\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "templatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "CONTENT|BODY={{.contents.body}}\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "hello\n")
 
@@ -484,7 +484,7 @@ func TestSite_Posts(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(postsDir, "templates"), 0o700); err != nil {
 		t.Fatalf("failed to create posts templates: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(postsDir, ".content.yaml"), []byte("contentType: posts\nlatest: 1\ntemplatesDir: templates\ncontentsDir: []\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(postsDir, ".content.yaml"), []byte("contentType: posts\nlatest: 1\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n"), 0o600); err != nil {
 		t.Fatalf("failed to write posts content config: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(postsDir, "templates", "template.md"), []byte("SITE_LATEST={{len .site.posts.latest}}|CONTENT_LATEST={{len .contents.posts.latest}}|CONTENT_ALL={{len .contents.posts.all}}|BODY={{.contents.body}}\n"), 0o600); err != nil {
@@ -603,7 +603,7 @@ func TestSite_PostTags(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nlatest: 3\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\nlatest: 2\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\nlatest: 2\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".tag.yaml"), "known:\n  defaultLang: ja\n  label:\n    ja: \"既知タグ\"\n    en: \"Known Tag\"\n  about:\n    ja: \"既知タグの説明\"\n    en: \"Known tag description\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{if .page.meta.title}}TITLE={{.page.meta.title}}|{{range .contents.posts.byTag}}X{{end}}{{range .contents.posts.all}}{{if eq .Title $.page.meta.title}}{{range .Tags}}{{if .URL}}KNOWN_LINK={{.URL}}|KNOWN_LABEL={{index .Label \"default\"}}|{{else}}UNKNOWN_LABEL={{index .Label \"default\"}}|{{end}}{{end}}{{end}}{{end}}{{end}}BODY={{.contents.body}}\n")
@@ -691,7 +691,7 @@ func TestSite_PostTagsWithoutDefinitionFile(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{range .contents.posts.all}}{{range .Tags}}{{if .URL}}LINK={{.URL}}{{else}}TEXT={{index .Label \"default\"}}{{end}}{{end}}{{end}}")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "tags.md"), "{{range .contents.posts.tags}}{{.Key}};{{end}}")
@@ -737,7 +737,7 @@ func TestSite_PostTagsTemplateMissing(t *testing.T) {
 	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "contentsDir:\n  - posts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
-	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "posts", ".content.yaml"), "contentType: posts\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "index.md"), "---\ntitle: 記事一覧\n---\nposts\n")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "templates", "template.md"), "{{.contents.body}}")
 	writeTestFile(t, filepath.Join(siteDir, "content", "posts", "only.md"), "---\ntitle: Only\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\n---\nonly\n")
