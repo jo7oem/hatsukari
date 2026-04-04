@@ -21,6 +21,7 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 - テンプレート適用: `templatesDir` 内の `contentTemplate`（未指定時 `template.html`）と部分テンプレート
 - ナビ生成: `registerIndexing` から `site.indexes` を生成
 - posts 機能: `site.posts` / `contents.posts` の一覧、latest、tags、byTag
+- サイト変数公開: `.site.yml` の `title` を `site.title`、`variables` を `site.variables` として公開
 - tags ページ: `/posts/tags/` と `/posts/tags/<key>` を `tags.md` で描画
 - 可視性制御: `visibility` と `publishAt` による公開判定
 - timezone 制御: `.site.yml` の `timezone` を公開判定時刻に適用
@@ -53,10 +54,14 @@ title: "サンプル"
 siteTemplatesDir: "site_templates"
 siteTemplate: "site-template.html"
 rootContentDir: "./"
+variables:
+  title: "サンプルタイトル"
 ```
 
 - `siteTemplate` は `siteTemplatesDir` 直下のファイル名を指定します。
 - 未指定時は `site-template.<ext>`（次点で `site-template.html`）を自動探索します。
+- `variables` はテンプレートで `site.variables` から参照します（例: `{{index .site.variables "title"}}`）。
+- `site.title` は `.site.yml` の `title` を公開します。
 
 Content 側は `.content.yaml` の `contentTemplate` でエントリーポイントを指定できます。
 

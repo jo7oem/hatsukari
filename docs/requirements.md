@@ -364,6 +364,24 @@
 - 差分
   - なし。
 
+### RQ-407 `site.title` と `site.variables` をテンプレートへ公開できること
+- 仕様（期待）
+  - `.site.yml` の `title` を `site.title` として公開する。
+  - `.site.yml` の `variables`（小文字）を `site.variables` として公開する。
+  - `variables` 未指定時は `site.variables` を空 map として公開する。
+  - `variables` は `site.variables` 配下に隔離し、`site` 直下キーを上書きしない。
+- 現実装（現状）
+  - `Setup` で `title` / `variables` / `indexes` を `s.vars` に設定する。
+  - `Variables()` で `site.variables` を複製して返す。
+  - `requestSiteVariables` は `site` 直下へ `currentLocale` と `posts` を追加する。
+- 実装根拠
+  - `site.go` の `SiteConfig`, `Setup`, `Variables`。
+  - `contents.go` の `requestSiteVariables`。
+- テスト根拠
+  - `TestSite_Setup`, `TestSite_SiteVariables`, `TestRenderer_Render`。
+- 差分
+  - なし。
+
 ---
 
 ## 8. 仕様（期待）と現実装（現状）の差分（横断）

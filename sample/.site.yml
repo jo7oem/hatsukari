@@ -2,5 +2,5 @@ title: "サンプル"
 siteTemplatesDir: "site_templates"
 siteTemplate: "site-template.html"
 rootContentDir: "./"
-Variables:
+variables:
   title: "サンプルタイトル"

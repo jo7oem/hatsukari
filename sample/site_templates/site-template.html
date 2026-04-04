@@ -7,6 +7,8 @@
 <body>
 {{template "header.html" .}}
 <main>
+<p>サイト名: {{.site.title}}</p>
+<p>サイト変数タイトル: {{index .site.variables "title"}}</p>
 <section>
   <h2>最新記事（サイト全体）bbbb</h2>
   <ul>

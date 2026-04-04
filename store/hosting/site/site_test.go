@@ -29,6 +29,16 @@ func TestSite_Setup(t *testing.T) {
 	if !ok {
 		t.Fatalf("site indexes type mismatch: %T", s.Variables()["indexes"])
 	}
+	if got, want := s.Variables()["title"], "Indexing Test"; got != want {
+		t.Fatalf("site title = %v, want %s", got, want)
+	}
+	siteVariables, ok := s.Variables()["variables"].(map[string]any)
+	if !ok {
+		t.Fatalf("site variables type mismatch: %T", s.Variables()["variables"])
+	}
+	if got := len(siteVariables); got != 0 {
+		t.Fatalf("site variables length = %d, want 0", got)
+	}
 
 	if got, want := len(indexes), 4; got != want {
 		t.Fatalf("indexes length = %d, want %d", got, want)
@@ -101,6 +111,126 @@ func TestSite_OpenDir_LoggerRequired(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "logger must not be nil") {
 		t.Fatalf("OpenSiteDir() error = %v, want contains logger must not be nil", err)
+	}
+}
+
+func TestSite_SiteVariables(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		siteYAML     string
+		contains     []string
+		notContains  []string
+		assertConfig func(t *testing.T, s *Site)
+	}{
+		{
+			name:     "WithConfiguredVariables",
+			siteYAML: "title: \"site-title\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\nvariables:\n  title: \"var-title\"\n  indexes: \"shadow\"\n  currentLocale: \"shadow-locale\"\n",
+			contains: []string{
+				"SITE_TITLE=site-title",
+				"VAR_TITLE=var-title",
+				"INDEX_COUNT=1",
+				"CURRENT=",
+				"VAR_INDEXES=shadow",
+				"VAR_CURRENT=shadow-locale",
+			},
+			assertConfig: func(t *testing.T, s *Site) {
+				t.Helper()
+				if got, want := s.Variables()["title"], "site-title"; got != want {
+					t.Fatalf("site title = %v, want %s", got, want)
+				}
+				siteVariables, ok := s.Variables()["variables"].(map[string]any)
+				if !ok {
+					t.Fatalf("site variables type mismatch: %T", s.Variables()["variables"])
+				}
+				if got, want := siteVariables["title"], "var-title"; got != want {
+					t.Fatalf("site.variables.title = %v, want %s", got, want)
+				}
+				if got := siteVariables["indexes"]; got != "shadow" {
+					t.Fatalf("site.variables.indexes = %v, want shadow", got)
+				}
+				indexes, ok := s.Variables()["indexes"].([]map[string]any)
+				if !ok {
+					t.Fatalf("site indexes type mismatch: %T", s.Variables()["indexes"])
+				}
+				if got, want := len(indexes), 1; got != want {
+					t.Fatalf("site indexes length = %d, want %d", got, want)
+				}
+				if _, exists := s.Variables()["currentLocale"]; exists {
+					t.Fatal("site currentLocale should not exist before request")
+				}
+			},
+		},
+		{
+			name:     "WithoutConfiguredVariables",
+			siteYAML: "title: \"site-title\"\ntimezone: \"UTC\"\nrootContentDir: \"content\"\n",
+			contains: []string{
+				"SITE_TITLE=site-title",
+				"VAR_COUNT=0",
+			},
+			notContains: []string{"var-title"},
+			assertConfig: func(t *testing.T, s *Site) {
+				t.Helper()
+				siteVariables, ok := s.Variables()["variables"].(map[string]any)
+				if !ok {
+					t.Fatalf("site variables type mismatch: %T", s.Variables()["variables"])
+				}
+				if got := len(siteVariables); got != 0 {
+					t.Fatalf("site variables length = %d, want 0", got)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteDir := t.TempDir()
+			writeTestFile(t, filepath.Join(siteDir, ".site.yml"), tt.siteYAML)
+			writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "registerIndexing: true\ncontentsDir: []\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", "templates", "template.md"), "SITE_TITLE={{.site.title}}|VAR_TITLE={{index .site.variables \"title\"}}|INDEX_COUNT={{len .site.indexes}}|CURRENT={{index .site \"currentLocale\"}}|VAR_INDEXES={{index .site.variables \"indexes\"}}|VAR_CURRENT={{index .site.variables \"currentLocale\"}}|VAR_COUNT={{len .site.variables}}\n")
+			writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "registerIndexing: true\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
+
+			s, err := OpenSiteDir(siteDir, newDiscardLogger())
+			if err != nil {
+				t.Fatalf("OpenSiteDir() error = %v", err)
+			}
+			t.Cleanup(func() { _ = s.Close() })
+
+			if tt.assertConfig != nil {
+				tt.assertConfig(t, s)
+			}
+
+			server := httptest.NewServer(s)
+			t.Cleanup(server.Close)
+
+			resp, err := server.Client().Get(server.URL + "/")
+			if err != nil {
+				t.Fatalf("GET / error = %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if got, want := resp.StatusCode, http.StatusOK; got != want {
+				t.Fatalf("GET / status = %d, want %d", got, want)
+			}
+
+			body, _ := io.ReadAll(resp.Body)
+			bodyStr := string(body)
+			for _, fragment := range tt.contains {
+				if !strings.Contains(bodyStr, fragment) {
+					t.Fatalf("GET / body does not contain %q\nbody=%s", fragment, bodyStr)
+				}
+			}
+			for _, fragment := range tt.notContains {
+				if strings.Contains(bodyStr, fragment) {
+					t.Fatalf("GET / body should not contain %q\nbody=%s", fragment, bodyStr)
+				}
+			}
+		})
 	}
 }
 

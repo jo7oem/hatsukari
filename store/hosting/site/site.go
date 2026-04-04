@@ -17,13 +17,14 @@ import (
 )
 
 type SiteConfig struct {
-	Title            string   `yaml:"title"`
-	Timezone         string   `yaml:"timezone,omitempty"`
-	Latest           *int     `yaml:"latest,omitempty"`
-	SiteTemplatesDir string   `yaml:"siteTemplatesDir"`
-	SiteTemplate     string   `yaml:"siteTemplate,omitempty"`
-	RootContentDir   string   `yaml:"rootContentDir"`
-	ContentsDir      []string `yaml:"contentsDir,omitempty"`
+	Title            string         `yaml:"title"`
+	Timezone         string         `yaml:"timezone,omitempty"`
+	Latest           *int           `yaml:"latest,omitempty"`
+	SiteTemplatesDir string         `yaml:"siteTemplatesDir"`
+	SiteTemplate     string         `yaml:"siteTemplate,omitempty"`
+	RootContentDir   string         `yaml:"rootContentDir"`
+	ContentsDir      []string       `yaml:"contentsDir,omitempty"`
+	Variables        map[string]any `yaml:"variables,omitempty"`
 }
 
 func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
@@ -91,6 +92,9 @@ func (s *Site) Config() SiteConfig {
 func (s *Site) Variables() map[string]any {
 	vars := make(map[string]any, len(s.vars)+1)
 	maps.Copy(vars, s.vars)
+	if siteVariables, ok := vars["variables"].(map[string]any); ok {
+		vars["variables"] = maps.Clone(siteVariables)
+	}
 	if s.root != nil {
 		vars["posts"] = s.root.BuildSitePosts(time.Now().In(s.location), s.latest)
 	}
@@ -116,8 +120,14 @@ func (s *Site) Setup() error {
 	}
 
 	siteIndexes := buildSiteIndexes(root.CollectIndexSeeds())
+	siteConfigVariables := maps.Clone(s.config.Variables)
+	if siteConfigVariables == nil {
+		siteConfigVariables = map[string]any{}
+	}
 	s.vars = map[string]any{
-		"indexes": siteIndexes,
+		"title":     s.config.Title,
+		"variables": siteConfigVariables,
+		"indexes":   siteIndexes,
 	}
 	s.root = root
 	s.latest = siteLatest

@@ -38,17 +38,17 @@ title: demo
 hello {{.title}}
 `)
 				templateFS := fstest.MapFS{
-					"template.md": &fstest.MapFile{Data: []byte(`{{template "parts.md" .}}BODY={{.contents.body}}|TITLE={{.page.meta.title}}|VAR={{index .contents.variables "label"}}|SITE={{index (index .site.indexes 0) "url"}}`)},
+					"template.md": &fstest.MapFile{Data: []byte(`{{template "parts.md" .}}BODY={{.contents.body}}|TITLE={{.page.meta.title}}|VAR={{index .contents.variables "label"}}|SITE={{index (index .site.indexes 0) "url"}}|SITE_TITLE={{.site.title}}|SITE_VAR={{index .site.variables "title"}}`)},
 					"parts.md":    &fstest.MapFile{Data: []byte(`{{define "parts.md"}}HEAD|{{end}}`)},
 				}
 				return NewRenderer(
 					source,
 					WithTemplateFS(templateFS, "template.md"),
 					WithContentsVariables(map[string]any{"label": "v1"}),
-					WithSiteVariables(map[string]any{"indexes": []map[string]any{{"url": "/"}}}),
+					WithSiteVariables(map[string]any{"indexes": []map[string]any{{"url": "/"}}, "title": "site-title", "variables": map[string]any{"title": "site-var"}}),
 				)
 			},
-			contains: []string{"HEAD|", "BODY=<p>hello demo</p>\n", "TITLE=demo", "VAR=v1", "SITE=/"},
+			contains: []string{"HEAD|", "BODY=<p>hello demo</p>\n", "TITLE=demo", "VAR=v1", "SITE=/", "SITE_TITLE=site-title", "SITE_VAR=site-var"},
 		},
 		{
 			name: "TemplateMissingFallback",
