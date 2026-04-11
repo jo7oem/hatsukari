@@ -1,7 +1,0 @@
-registerIndexing: true
-indexTitle:
-    ja: "子"
-defaultLocale: ja
-templatesDir: templates
-contentsDir:
-    - "grandchild"

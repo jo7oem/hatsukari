@@ -1,8 +1,0 @@
-registerIndexing: true
-defaultLocale: ja
-priority: -1
-indexTitle:
-  ja: "シー"
-templatesDir: templates
-contentsDir: []
-

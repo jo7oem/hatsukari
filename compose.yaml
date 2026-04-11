@@ -12,6 +12,7 @@ services:
      SERVER_ADDRESS: ":8080"
      CONFIG_PATH: "hatsukari.yaml"
      WORK_DIR: "sample"
+     CONTENTS_PATH: "sample"
     ports:
         - "2345:2345"
         - "8080:8080"

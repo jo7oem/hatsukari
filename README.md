@@ -3,29 +3,6 @@
 ## 全体概要
 hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/HTML を配信する、Go 製の軽量サイトホスティング実装です。
 
-- `site` がサイト設定とルーティング全体を管理
-- `contents` が Content ツリー（子 Content を含む）を解決
-- `renderer` が Front Matter 付き Markdown を HTML 化しテンプレート適用
-- `logging` が `slog` ベースの薄いラッパーを提供
-
-## API 利用時の注意
-- `site.OpenSiteDir(path, logger)` は `logger` に `nil` を許可しません。
-- `contents.OpenContentDir(fs, path, logger)` も `logger` に `nil` を許可しません。
-- 前提条件エラーは `<argument> must not be nil` 形式のメッセージで統一しています。
-- 空文字禁止の前提条件エラーは `<argument> must not be empty` 形式で統一しています。
-- テストや静音実行では `slog.NewTextHandler(io.Discard, nil)` を使った logger を渡してください。
-
-## 外形的にできること
-- Content ツリー配信: `.content.yaml` の `contentsDir` で階層化した配信
-- Markdown 配信: Front Matter 抽出、本文のメタ展開、HTML 変換
-- テンプレート適用: `templatesDir` 内の `contentTemplate`（未指定時 `template.html`）と部分テンプレート
-- ナビ生成: `registerIndexing` から `site.indexes` を生成
-- posts 機能: `site.posts` / `contents.posts` の一覧、latest、tags、byTag
-- サイト変数公開: `.site.yml` の `title` を `site.title`、`variables` を `site.variables` として公開
-- tags ページ: `/posts/tags/` と `/posts/tags/<key>` を `tags.md` で描画
-- 可視性制御: `visibility` と `publishAt` による公開判定
-- timezone 制御: `.site.yml` の `timezone` を公開判定時刻に適用
-
 ## 実行方法
 既定では `./sample` を読み込み、`:8080` で HTTP サーバを起動します。
 
@@ -77,7 +54,7 @@ contentTemplate: template.md
 
 ## テスト
 ```bash
-go test ./... -count=1
+make test
 ```
 
 ## ドキュメント
