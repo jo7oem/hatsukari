@@ -108,6 +108,8 @@
 ### RQ-202 Markdown 本文でメタ参照展開できること
 - 仕様（期待）
   - 本文を Go テンプレートとして実行し、Front Matter 値を参照できる。
+  - 本文テンプレートでは `site` / `contents` / `page.meta` を参照できる。
+  - Front Matter とシステム変数のキーが衝突した場合はシステム変数を優先する。
 - 現実装（現状）
   - `text/template` (`missingkey=zero`) で事前展開後に Markdown 変換する。
   - 日時は `2006/01/02 15:04:05` に正規化する。

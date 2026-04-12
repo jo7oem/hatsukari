@@ -96,7 +96,34 @@ func (r *Renderer) Render() ([]byte, error) {
 		return nil, err
 	}
 
-	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, metaData)
+	normalizedMeta := make(map[string]any, len(metaData))
+	for key, value := range metaData {
+		normalizedMeta[key] = normalizeMetaValue(value)
+	}
+
+	contentsData := map[string]any{
+		"body":      template.HTML(""),
+		"variables": r.contentsVariables,
+		"posts":     r.contentsPosts,
+	}
+	pageData := map[string]any{
+		"contents": contentsData,
+		"site":     r.siteVariables,
+		"page": map[string]any{
+			"meta": normalizedMeta,
+		},
+	}
+
+	markdownTemplateData := make(map[string]any, len(normalizedMeta)+len(pageData))
+	for key, value := range normalizedMeta {
+		markdownTemplateData[key] = value
+	}
+	// 本文テンプレートではシステム変数を優先する
+	for key, value := range pageData {
+		markdownTemplateData[key] = value
+	}
+
+	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, markdownTemplateData)
 	if err != nil {
 		return nil, err
 	}
@@ -107,17 +134,9 @@ func (r *Renderer) Render() ([]byte, error) {
 		return nil, err
 	}
 
-	pageData := map[string]any{
-		"contents": map[string]any{
-			"body":      template.HTML(htmlBuffer.String()),
-			"variables": r.contentsVariables,
-			"posts":     r.contentsPosts,
-		},
-		"site": r.siteVariables,
-		"page": map[string]any{
-			"meta": meta.Get(context),
-		},
-	}
+	contentsData["body"] = template.HTML(htmlBuffer.String())
+	pageMeta, _ := pageData["page"].(map[string]any)
+	pageMeta["meta"] = meta.Get(context)
 
 	out := htmlBuffer.Bytes()
 	if r.contentTemplateFS != nil && r.contentTemplate != "" {
@@ -127,7 +146,6 @@ func (r *Renderer) Render() ([]byte, error) {
 		}
 	}
 
-	contentsData, _ := pageData["contents"].(map[string]any)
 	contentsData["body"] = template.HTML(string(out))
 	if r.siteTemplateFS != nil && r.siteTemplate != "" {
 		out, err = renderPageTemplate(r.siteTemplateFS, r.siteTemplate, pageData, out)

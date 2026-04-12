@@ -51,6 +51,24 @@ hello {{.title}}
 			contains: []string{"HEAD|", "BODY=<p>hello demo</p>\n", "TITLE=demo", "VAR=v1", "SITE=/", "SITE_TITLE=site-title", "SITE_VAR=site-var"},
 		},
 		{
+			name: "ExpandMarkdownWithSystemVariables",
+			render: func() *Renderer {
+				source := []byte(`---
+title: 記事一覧
+site: metadata-site
+contents: metadata-contents
+---
+SITE={{len .site.posts.latest}}/CONTENTS={{len .contents.posts.latest}}/TITLE={{.page.meta.title}}/ROOT={{.title}}
+`)
+				return NewRenderer(
+					source,
+					WithSiteVariables(map[string]any{"posts": map[string]any{"latest": []int{1, 2}}}),
+					WithContentsPosts(map[string]any{"latest": []int{1}}),
+				)
+			},
+			want: "<p>SITE=2/CONTENTS=1/TITLE=記事一覧/ROOT=記事一覧</p>\n",
+		},
+		{
 			name: "TemplateMissingFallback",
 			render: func() *Renderer {
 				source := []byte("plain\n")

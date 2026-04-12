@@ -703,6 +703,48 @@ func TestSite_Posts(t *testing.T) {
 	}
 }
 
+func TestSite_PostsMarkdownTemplateContext(t *testing.T) {
+	t.Parallel()
+
+	siteDir := t.TempDir()
+	writeTestFile(t, filepath.Join(siteDir, ".site.yml"), "title: \"posts\"\ntimezone: \"UTC\"\nlatest: 2\nrootContentDir: \"content\"\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", ".content.yaml"), "registerIndexing: true\ncontentsDir:\n  - posts\n")
+	writeTestFile(t, filepath.Join(siteDir, "content", "index.md"), "root\n")
+
+	postsDir := filepath.Join(siteDir, "content", "posts")
+	writeTestFile(t, filepath.Join(postsDir, ".content.yaml"), "contentType: posts\nlatest: 1\ntemplatesDir: templates\ncontentTemplate: template.md\ncontentsDir: []\n")
+	writeTestFile(t, filepath.Join(postsDir, "templates", "template.md"), "BODY={{.contents.body}}\n")
+	writeTestFile(t, filepath.Join(postsDir, "index.md"), "---\ntitle: 記事一覧\n---\nSITE_LATEST={{len .site.posts.latest}}|CONTENT_LATEST={{len .contents.posts.latest}}|TITLE={{.page.meta.title}}\n")
+	writeTestFile(t, filepath.Join(postsDir, "a.md"), "---\ntitle: A\npostedAt: 2026-03-01T00:00:00Z\nvisibility: public\n---\nA\n")
+	writeTestFile(t, filepath.Join(postsDir, "b.md"), "---\ntitle: B\npostedAt: 2026-03-02T00:00:00Z\nvisibility: public\n---\nB\n")
+
+	s, err := OpenSiteDir(siteDir, newDiscardLogger())
+	if err != nil {
+		t.Fatalf("OpenSiteDir() error = %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	server := httptest.NewServer(s)
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/posts/")
+	if err != nil {
+		t.Fatalf("GET /posts/ error = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Fatalf("GET /posts/ status = %d, want %d", got, want)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	for _, fragment := range []string{"SITE_LATEST=2", "CONTENT_LATEST=1", "TITLE=記事一覧"} {
+		if !strings.Contains(bodyStr, fragment) {
+			t.Fatalf("GET /posts/ body does not contain %q\nbody=%s", fragment, bodyStr)
+		}
+	}
+}
+
 func TestSite_OpenDir_MultiplePostsContents(t *testing.T) {
 	t.Parallel()
 

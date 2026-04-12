@@ -21,19 +21,14 @@ func ExtractMeta(source []byte) (map[string]any, error) {
 	return metaData, nil
 }
 
-func renderMarkdownWithMetaTemplate(source []byte, metaData map[string]any) ([]byte, error) {
+func renderMarkdownWithMetaTemplate(source []byte, templateData map[string]any) ([]byte, error) {
 	tmpl, err := texttemplate.New("markdown").Option("missingkey=zero").Parse(string(source))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse markdown template: %w", err)
 	}
 
-	data := make(map[string]any, len(metaData))
-	for key, value := range metaData {
-		data[key] = normalizeMetaValue(value)
-	}
-
 	var out bytes.Buffer
-	if err := tmpl.Execute(&out, data); err != nil {
+	if err := tmpl.Execute(&out, templateData); err != nil {
 		return nil, fmt.Errorf("failed to execute markdown template: %w", err)
 	}
 	return out.Bytes(), nil

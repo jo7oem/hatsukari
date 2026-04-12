@@ -74,7 +74,9 @@ func TestSite_ServeHTTP_SampleCompatibility(t *testing.T) {
 				"最新記事（この配下）",
 				"最新記事（サイト全体）",
 				"<a href='/posts/sample-post/'>サンプル記事</a>",
+				"<a href='/posts/next-post/'>サンプル記事2</a>",
 			},
+			notContains: []string{"&lt;li&gt;", "<pre><code>&lt;li&gt;"},
 		},
 		{
 			rq:         "RQ-305",
