@@ -261,12 +261,12 @@ func TestLogger_Error(t *testing.T) {
 			if lr.Msg != tt.wantsMsg {
 				t.Fatalf("unexpected log message: got %s, want %s", lr.Msg, tt.wantsMsg)
 			}
-			stack, ok := lr.Attrs["stacktrace"].(string)
-			if !ok || stack == "" {
+			stack, ok := lr.Attrs["stacktrace"].([]any)
+			if !ok || stack == nil {
 				t.Fatalf("stacktrace missing or invalid: %v", lr.Attrs["stacktrace"])
 			}
-			if got := strings.Count(stack, "\n"); got < 1 {
-				t.Fatalf("stacktrace lines too short: got %d", got)
+			if len(stack) < 1 {
+				t.Fatalf("stacktrace lines too short: got %d", len(stack))
 			}
 			delete(lr.Attrs, "stacktrace")
 			if diff := cmp.Diff(tt.wants, lr.Attrs); diff != "" {
