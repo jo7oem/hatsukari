@@ -1,0 +1,7 @@
+siteDir: sample
+addr: :8080
+telemetry:
+  enabled: true
+  exporterEndpoint: otel-collector:4317
+  insecure: true
+

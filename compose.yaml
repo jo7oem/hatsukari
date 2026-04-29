@@ -9,9 +9,8 @@ services:
       - modcache:/go/pkg/mod
       - build_cache:/root/.cache/go-build
     environment:
-      SERVER_ADDRESS: ":8080"
-      CONFIG_PATH: "hatsukari.yaml"
-      WORK_DIR: "sample"
+      HATSUKARI_ADDR: ":8080"
+      HATSUKARI_SITE_DIR: "sample"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       OTEL_EXPORTER_OTLP_INSECURE: "true"
     depends_on:
