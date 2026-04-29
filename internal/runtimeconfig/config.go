@@ -77,9 +77,9 @@ func ExampleYAML() string {
 		SiteDir: "./sample",
 		Addr:    ":8080",
 		Telemetry: RuntimeTelemetryConfigY{
-			Enabled:          boolPtr(true),
+			Enabled:          new(true),
 			ExporterEndpoint: "otel-collector:4317",
-			Insecure:         boolPtr(true),
+			Insecure:         new(true),
 		},
 	}
 	b, err := yaml.Marshal(example)
@@ -227,8 +227,4 @@ func buildCommand(conf *RuntimeConfig, out io.Writer, errOut io.Writer, actionIn
 			return nil
 		},
 	}
-}
-
-func boolPtr(v bool) *bool {
-	return &v
 }
