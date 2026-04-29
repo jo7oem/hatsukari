@@ -8,6 +8,8 @@
 ## 2. スコープ
 対象コード:
 - `main.go`
+- `main_runtime_config.go`
+- `internal/runtimeconfig/config.go`
 - `logging/logger.go`
 - `telemetry/telemetry.go`
 - `telemetry/site_metrics.go`
@@ -33,6 +35,7 @@
   - `main.go` は `siteDir` と `addr` を実行設定から読み込み、HTTP サーバを起動する。
 - 実装根拠
   - `main.go` の `parseRuntimeConfig` と `http.ListenAndServe(conf.addr, siteMap)`。
+  - 実行設定解決の実体は `internal/runtimeconfig/config.go` の `ParseWithIO`。
 - テスト根拠
   - `site`/`contents` の `httptest.NewServer(...)` によりハンドラとして配信可能なことを検証。
 - 差分
@@ -48,7 +51,8 @@
   - `-print-config-example` で実行設定例 YAML を出力して終了する。
   - `siteDir`, `addr`, `telemetry.enabled`, `telemetry.exporterEndpoint`, `telemetry.insecure` を解決する。
 - 実装根拠
-  - `main.go` の `parseRuntimeConfig`, `loadRuntimeConfigFile`, `runtimeConfigExampleYAML`。
+  - `main_runtime_config.go` の `parseRuntimeConfig`, `runtimeConfigExampleYAML`（互換レイヤ）。
+  - `internal/runtimeconfig/config.go` の `ParseWithIO`, `ExampleYAML`, `loadRuntimeConfigFile`（実体）。
 - テスト根拠
   - `main_test.go` の `TestMain_ParseRuntimeConfig`, `TestMain_RuntimeConfigExampleYAML`。
 - 差分

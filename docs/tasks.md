@@ -1,36 +1,28 @@
-# サイト全体テンプレート適用 実装タスク
+# 可読性・保守性向上リファクタ 実装タスク
 
 ## 関連ファイル
 - `docs/requirements.md`
-- `store/hosting/site/config.go`
-- `store/hosting/site/site.go`
-- `telemetry/telemetry.go`
-- `telemetry/site_metrics.go`
+- `main.go`
+- `main_runtime_config.go`
+- `main_test.go`
+- `internal/runtimeconfig/config.go`
 - `store/hosting/contents/contents.go`
-- `store/hosting/renderer/renderer.go`
-- `store/hosting/renderer/template_render.go`
+- `store/hosting/contents/routing.go`
+- `store/hosting/contents/indexing.go`
+- `store/hosting/site/site.go`
 - `store/hosting/site/site_test.go`
-- `store/hosting/renderer/renderer_test.go`
 
-## 要件
-1. 適用順序は `render単位展開 -> contents単位テンプレート適用 -> サイト全体テンプレート適用` とする
-2. サイト全体テンプレート名は `site-template.<ext>` とする
-3. `disableSiteTemplate: true` を content 単位で独立適用する
-4. `siteTemplatesDir` はサイトルート基準で解決し、`../` と絶対パスは起動エラーとする
-5. サイトテンプレート未配置時は自動フォールバックとしてサイト段をスキップする
-6. `tags.md` にもサイト全体テンプレートを適用する
-7. サイトテンプレートのエントリーポイントを `.site.yml` の `siteTemplate` で定義できる
-8. Content テンプレートのエントリーポイントを `.content.yaml` の `contentTemplate` で定義できる
-9. `contentTemplate` 未指定時は `template.html` を既定値として使用する
+## 方針
+1. 仕様基準は `docs/requirements.md` と現行テスト挙動を同格とする
+2. 命名は実装語彙に準拠し、機能単位で揃える
+3. 責務集中を避けるためサブパッケージを導入する
+4. 機能完了ごとに統合し、統合ごとにテストを通す
 
 ## 実装タスク
-- [x] `siteTemplatesDir` バリデーションを `site` 設定読み込みへ追加
-- [x] `contentConfig` へ `disableSiteTemplate` を追加
-- [x] `renderer` へ content/site の2段テンプレート適用を追加
-- [x] 通常ページでサイトテンプレート段を適用
-- [x] `tags.md` 経路でもサイトテンプレート段を適用
-- [x] サイトテンプレート未配置フォールバックを実装
-- [x] 主要テスト（順序、オプトアウト、不正パス、未配置、tags）を追加
-- [x] `siteTemplate` 設定でエントリーポイントを切り替え可能にする
-- [x] `contentTemplate` 設定で Content テンプレートのエントリーポイントを切り替え可能にする
-- [x] `contentTemplate` 未指定時の既定値を `template.html` にする
+- [x] `main.go` の実行設定解決を `internal/runtimeconfig` サブパッケージへ分離
+- [x] 既存 CLI オプション挙動を維持する互換レイヤ (`main_runtime_config.go`) を追加
+- [ ] `main` 起動処理を `bootstrap` 責務へ分離し、依存注入可能な構造に整理
+- [ ] `store/hosting/contents` を責務別サブパッケージへ再配置（routing/rendering/posts/tags）
+- [ ] `site` と `contents` 間の `map[string]any` 境界を縮小する型導入
+- [ ] 命名統一後のテスト名・ヘルパ名を実装語彙へ揃える
+- [ ] 要件仕様へ再配置後の実装根拠を追記
