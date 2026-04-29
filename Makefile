@@ -13,11 +13,11 @@ build:
 
 .PHONY: fmt
 fmt: $(DEV_BIN)/golangci-lint
+	go fix ./...
 	$(DEV_BIN)/golangci-lint run --fix --config=.golangci.yml
 
 .PHONY: lint
 lint: $(DEV_BIN)/golangci-lint
-	go fix ./...
 	$(DEV_BIN)/golangci-lint run --config=.golangci.yml
 
 .PHONY: setup
@@ -59,4 +59,4 @@ clean:
 
 .PHONY: test
 test:
-	go test --race -v ./...
+	go test --race -parallel 8 ./...
