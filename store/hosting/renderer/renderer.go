@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"time"
 
@@ -115,13 +116,9 @@ func (r *Renderer) Render() ([]byte, error) {
 	}
 
 	markdownTemplateData := make(map[string]any, len(normalizedMeta)+len(pageData))
-	for key, value := range normalizedMeta {
-		markdownTemplateData[key] = value
-	}
+	maps.Copy(markdownTemplateData, normalizedMeta)
 	// 本文テンプレートではシステム変数を優先する
-	for key, value := range pageData {
-		markdownTemplateData[key] = value
-	}
+	maps.Copy(markdownTemplateData, pageData)
 
 	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, markdownTemplateData)
 	if err != nil {
