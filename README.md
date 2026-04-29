@@ -80,6 +80,21 @@ contentTemplate: template.md
 go test ./... -count=1
 ```
 
+## OpenTelemetry 開発観測
+- `app` は OTLP を `OTEL_EXPORTER_OTLP_ENDPOINT` に送信します。
+- 開発用 `compose` では `otel-collector` 経由で Jaeger と Tempo の両方へ転送します。
+- 一次確認は Jaeger UI（`http://127.0.0.1:16686`）を想定しています。
+
+```bash
+docker compose -f compose.yaml up -d
+docker compose -f compose.yaml logs --tail=200 otel-collector
+```
+
+- Jaeger UI: `http://127.0.0.1:16686`
+- Grafana UI: `http://127.0.0.1:3000`
+
+Grafana は anonymous login 有効のため、起動直後から Tempo datasource でトレース確認できます。
+
 ## ドキュメント
 - 要件仕様（正本）: `docs/requirements.md`
 - 調査/履歴レポート: `docs/reports/`

@@ -89,6 +89,27 @@
 - 差分
   - 期待に対して自動検証が不足。
 
+### RQ-104 OpenTelemetry トレースを collector 経由で収集できること
+- 仕様（期待）
+  - アプリは OTLP 送信先を直接バックエンドへ向けず、`otel-collector` 経由で送信する。
+  - collector はトレースを Jaeger と Tempo へ並列転送できる。
+  - 開発時の一次確認 UI は Jaeger を優先する。
+  - tracer は context 注入で扱い、グローバル tracer へ直接依存しない。
+  - exporter 初期化は指数バックオフで再試行し、バックオフ上限は設けない。
+  - 再試行回数とバックオフ基準値は `logging` パッケージ内 `var` で管理する。
+  - これら設定値の変更は起動時の初期化順序規約で 1 回のみ行う。
+- 現実装（現状）
+  - `logging/otel.go` で OTLP exporter と tracer provider を初期化し、context 注入 API を提供する。
+  - `compose.yaml` は `otel-collector` を経由して Jaeger/Tempo を起動する。
+- 実装根拠
+  - `logging/otel.go` の `InitTelemetry`, `InjectTracer`, `TracerFromContext`, `StartSpan`。
+  - `otel/collector-config.yaml` の traces pipeline。
+  - `compose.yaml` の `app -> otel-collector` 依存。
+- テスト根拠
+  - （未整備）
+- 差分
+  - collector 経由での収集確認は手動確認手順に依存する。
+
 ---
 
 ## 5. レンダリング要件（`renderer`）

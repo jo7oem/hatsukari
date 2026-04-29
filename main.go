@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -68,6 +69,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ctx := context.Background()
+
+	shutdownTelemetry, err := logging.InitTelemetry(ctx, logging.TelemetryConfig{
+		ServiceName:      "hatsukari",
+		ExporterEndpoint: strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+		Insecure:         strings.EqualFold(strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")), "true"),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() { _ = shutdownTelemetry(ctx) }()
 
 	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
 
@@ -79,7 +91,14 @@ func main() {
 	defer func() { _ = siteMap.Close() }()
 
 	logger.Info("server starting", slog.String("siteDir", conf.siteDir), slog.String("addr", conf.addr))
-	err = http.ListenAndServe(conf.addr, siteMap)
+	h := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		reqCtx := logging.InjectTracer(req.Context(), logging.Tracer("hatsukari/http"))
+		spanCtx, span := logging.StartSpan(reqCtx, req.Method+" "+req.URL.Path)
+		defer span.End()
+
+		siteMap.ServeHTTP(w, req.WithContext(spanCtx))
+	})
+	err = http.ListenAndServe(conf.addr, h)
 	if err != nil {
 		log.Fatal(err)
 	}
