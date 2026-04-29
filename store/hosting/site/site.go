@@ -54,6 +54,7 @@ func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
 		config:   *conf,
 		mux:      http.NewServeMux(),
 		logger:   logger,
+		tracer:   "hatsukari/site",
 		location: location,
 	}
 
@@ -72,13 +73,18 @@ type Site struct {
 	mux      *http.ServeMux
 	vars     map[string]any
 	logger   *logging.Logger
+	tracer   string
 	location *time.Location
 	root     *contents.Content
 	latest   int
 }
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	reqCtx := logging.InjectTracer(r.Context(), logging.Tracer(s.tracer))
+	spanCtx, span := logging.StartSpan(reqCtx, r.Method+" "+r.URL.Path)
+	defer span.End()
+
+	s.mux.ServeHTTP(w, r.WithContext(spanCtx))
 }
 
 func (s *Site) Close() error {

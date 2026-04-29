@@ -91,14 +91,7 @@ func main() {
 	defer func() { _ = siteMap.Close() }()
 
 	logger.Info("server starting", slog.String("siteDir", conf.siteDir), slog.String("addr", conf.addr))
-	h := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		reqCtx := logging.InjectTracer(req.Context(), logging.Tracer("hatsukari/http"))
-		spanCtx, span := logging.StartSpan(reqCtx, req.Method+" "+req.URL.Path)
-		defer span.End()
-
-		siteMap.ServeHTTP(w, req.WithContext(spanCtx))
-	})
-	err = http.ListenAndServe(conf.addr, h)
+	err = http.ListenAndServe(conf.addr, siteMap)
 	if err != nil {
 		log.Fatal(err)
 	}
