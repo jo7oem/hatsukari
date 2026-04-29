@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/site"
+	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,35 +40,7 @@ type runtimeTelemetryConfigYML struct {
 	Insecure         *bool  `yaml:"insecure,omitempty"`
 }
 
-type stringFlag struct {
-	value string
-	set   bool
-}
-
-func (f *stringFlag) String() string { return f.value }
-
-func (f *stringFlag) Set(value string) error {
-	f.value = value
-	f.set = true
-	return nil
-}
-
-type boolFlag struct {
-	value bool
-	set   bool
-}
-
-func (f *boolFlag) String() string { return strconv.FormatBool(f.value) }
-
-func (f *boolFlag) Set(value string) error {
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return err
-	}
-	f.value = parsed
-	f.set = true
-	return nil
-}
+var errCommandHandled = errors.New("command already handled")
 
 func loadRuntimeConfigFile(path string) (runtimeConfigFile, error) {
 	if strings.TrimSpace(path) == "" {
@@ -108,15 +81,15 @@ func extractConfigPathFromArgs(args []string, fallback string) (string, error) {
 		if arg == "" {
 			continue
 		}
-		if arg == "-config" {
+		if arg == "--config" {
 			if i+1 >= len(args) {
-				return "", fmt.Errorf("flag needs an argument: -config")
+				return "", fmt.Errorf("flag needs an argument: --config")
 			}
 			configPath = strings.TrimSpace(args[i+1])
 			i++
 			continue
 		}
-		if after, ok := strings.CutPrefix(arg, "-config="); ok {
+		if after, ok := strings.CutPrefix(arg, "--config="); ok {
 			configPath = strings.TrimSpace(after)
 		}
 	}
@@ -124,6 +97,10 @@ func extractConfigPathFromArgs(args []string, fallback string) (string, error) {
 }
 
 func parseRuntimeConfig(args []string, getenv func(string) string) (runtimeConfig, error) {
+	return parseRuntimeConfigWithIO(args, getenv, io.Discard, io.Discard)
+}
+
+func parseRuntimeConfigWithIO(args []string, getenv func(string) string, out io.Writer, errOut io.Writer) (runtimeConfig, error) {
 	defaultSiteDir := strings.TrimSpace(getenv("HATSUKARI_SITE_DIR"))
 	if defaultSiteDir == "" {
 		defaultSiteDir = "./sample"
@@ -186,50 +163,77 @@ func parseRuntimeConfig(args []string, getenv func(string) string) (runtimeConfi
 		otelInsecure = *fileConf.Telemetry.Insecure
 	}
 
-	fs := flag.NewFlagSet("hatsukari", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+	conf := runtimeConfig{
+		siteDir:      siteDir,
+		addr:         addr,
+		configPath:   strings.TrimSpace(preConfigPath),
+		otelEnabled:  otelEnabled,
+		otelEndpoint: otelEndpoint,
+		otelInsecure: otelInsecure,
+	}
+	actionInvoked := false
+	cmd := &cli.Command{
+		Name:      "hatsukari",
+		Usage:     "Markdown/HTML サイトを配信するローカルサーバ",
+		UsageText: "hatsukari [オプション]",
+		Description: strings.TrimSpace(`
+指定したサイトディレクトリを読み込み、HTTP で配信します。
+設定値の優先順位は「環境変数 < 設定ファイル < CLI」です。
 
-	var conf runtimeConfig
-	fs.StringVar(&conf.siteDir, "site", siteDir, "path to site directory")
-	fs.StringVar(&conf.addr, "addr", addr, "listen address")
-	fs.StringVar(&conf.configPath, "config", strings.TrimSpace(preConfigPath), "runtime config yaml path")
-	fs.BoolVar(&conf.printConfigExample, "print-config-example", false, "print YAML config example and exit")
+例:
+  hatsukari --site ./sample --addr :8080
+  hatsukari --config ./runtime.yaml
+  hatsukari --print-config-example
+`),
+		Writer:    out,
+		ErrWriter: errOut,
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "site", Value: siteDir, Destination: &conf.siteDir, Usage: "サイトディレクトリのパス"},
+			&cli.StringFlag{Name: "addr", Value: addr, Destination: &conf.addr, Usage: "リッスンアドレス"},
+			&cli.StringFlag{Name: "config", Value: strings.TrimSpace(preConfigPath), Destination: &conf.configPath, Usage: "実行設定 YAML のパス"},
+			&cli.BoolFlag{Name: "print-config-example", Destination: &conf.printConfigExample, Usage: "設定ファイル例を標準出力に出して終了"},
+			&cli.BoolFlag{Name: "otel-enabled", Value: otelEnabled, Destination: &conf.otelEnabled, Usage: "OpenTelemetry 送信を有効化する"},
+			&cli.StringFlag{Name: "otel-endpoint", Value: otelEndpoint, Destination: &conf.otelEndpoint, Usage: "OTLP Exporter エンドポイント"},
+			&cli.BoolFlag{Name: "otel-insecure", Value: otelInsecure, Destination: &conf.otelInsecure, Usage: "OTLP の insecure 通信を有効化する"},
+		},
+		Action: func(context.Context, *cli.Command) error {
+			actionInvoked = true
+			conf.siteDir = strings.TrimSpace(conf.siteDir)
+			conf.addr = strings.TrimSpace(conf.addr)
+			conf.configPath = strings.TrimSpace(conf.configPath)
+			conf.otelEndpoint = strings.TrimSpace(conf.otelEndpoint)
+			if conf.siteDir == "" {
+				return fmt.Errorf("siteDir must not be empty")
+			}
+			if conf.addr == "" {
+				return fmt.Errorf("addr must not be empty")
+			}
+			return nil
+		},
+	}
 
-	otelEnabledFlag := &boolFlag{value: otelEnabled}
-	otelEndpointFlag := &stringFlag{value: otelEndpoint}
-	otelInsecureFlag := &boolFlag{value: otelInsecure}
-	fs.Var(otelEnabledFlag, "otel-enabled", "enable or disable telemetry export")
-	fs.Var(otelEndpointFlag, "otel-endpoint", "OTLP exporter endpoint")
-	fs.Var(otelInsecureFlag, "otel-insecure", "enable insecure OTLP transport")
-
-	if err := fs.Parse(args); err != nil {
+	runArgs := append([]string{"hatsukari"}, args...)
+	if err := cmd.Run(context.Background(), runArgs); err != nil {
 		return runtimeConfig{}, err
 	}
-
-	conf.siteDir = strings.TrimSpace(conf.siteDir)
-	conf.addr = strings.TrimSpace(conf.addr)
-	conf.configPath = strings.TrimSpace(conf.configPath)
-	conf.otelEnabled = otelEnabledFlag.value
-	conf.otelEndpoint = strings.TrimSpace(otelEndpointFlag.value)
-	conf.otelInsecure = otelInsecureFlag.value
-	if conf.siteDir == "" {
-		return runtimeConfig{}, fmt.Errorf("siteDir must not be empty")
-	}
-	if conf.addr == "" {
-		return runtimeConfig{}, fmt.Errorf("addr must not be empty")
+	if !actionInvoked {
+		return runtimeConfig{}, errCommandHandled
 	}
 
 	return conf, nil
 }
 
-func main() {
-	conf, err := parseRuntimeConfig(os.Args[1:], os.Getenv)
+func run(args []string, getenv func(string) string, out io.Writer, errOut io.Writer) error {
+	conf, err := parseRuntimeConfigWithIO(args, getenv, out, errOut)
 	if err != nil {
-		log.Fatal(err)
+		if errors.Is(err, errCommandHandled) {
+			return nil
+		}
+		return err
 	}
 	if conf.printConfigExample {
-		_, _ = fmt.Fprint(os.Stdout, runtimeConfigExampleYAML())
-		return
+		_, _ = fmt.Fprint(out, runtimeConfigExampleYAML())
+		return nil
 	}
 	ctx := context.Background()
 	shutdownTelemetry := func(context.Context) error { return nil }
@@ -240,23 +244,29 @@ func main() {
 			Insecure:         conf.otelInsecure,
 		})
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 	defer func() { _ = shutdownTelemetry(ctx) }()
 
-	logger := logging.NewLogger(slog.NewJSONHandler(os.Stdout, nil), "hatsukari")
+	logger := logging.NewLogger(slog.NewJSONHandler(out, nil), "hatsukari")
 
 	siteMap, err := site.OpenSiteDir(conf.siteDir, logger)
 	if err != nil {
 		logger.Error("failed to open site dir", err)
-		return
+		return err
 	}
 	defer func() { _ = siteMap.Close() }()
 
 	logger.Info("server starting", slog.String("siteDir", conf.siteDir), slog.String("addr", conf.addr))
-	err = http.ListenAndServe(conf.addr, siteMap)
-	if err != nil {
+	if err := http.ListenAndServe(conf.addr, siteMap); err != nil {
+		return err
+	}
+	return nil
+}
+
+func main() {
+	if err := run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -36,7 +36,7 @@ go run ./main.go
 CLI と環境変数で起動先を切り替えられます。
 
 ```bash
-go run ./main.go -site ./sample -addr :8080
+go run ./main.go --site ./sample --addr :8080
 ```
 
 - 環境変数: `HATSUKARI_SITE_DIR`, `HATSUKARI_ADDR`
@@ -45,13 +45,14 @@ go run ./main.go -site ./sample -addr :8080
 
 利用可能な主なフラグ:
 
-- `-config <path>`: 実行設定 YAML の読み込み
-- `-site <path>`: サイトディレクトリ
-- `-addr <addr>`: リッスンアドレス
-- `-otel-enabled <true|false>`: OTel 送信の有効/無効
-- `-otel-endpoint <host:port>`: OTLP エンドポイント
-- `-otel-insecure <true|false>`: OTLP insecure の有効/無効
-- `-print-config-example`: 設定ファイル例を標準出力へ出して終了
+- `--config <path>`: 実行設定 YAML の読み込み
+- `--site <path>`: サイトディレクトリ
+- `--addr <addr>`: リッスンアドレス
+- `--otel-enabled <true|false>`: OTel 送信の有効/無効
+- `--otel-endpoint <host:port>`: OTLP エンドポイント
+- `--otel-insecure <true|false>`: OTLP insecure の有効/無効
+- `--print-config-example`: 設定ファイル例を標準出力へ出して終了
+- `--help`: 日本語の概要と実行例を表示
 
 環境変数:
 
@@ -93,7 +94,7 @@ contentTemplate: template.md
 
 主要キーの詳細仕様は `docs/requirements.md` を参照してください。
 
-実行設定ファイル（`-config` / `CONFIG_PATH`）の例:
+実行設定ファイル（`--config` / `CONFIG_PATH`）の例:
 
 ```yaml
 siteDir: ./sample
@@ -108,7 +109,7 @@ telemetry:
 設定例を出力するだけの場合:
 
 ```bash
-go run ./main.go -print-config-example
+go run ./main.go --print-config-example
 ```
 
 ## テスト

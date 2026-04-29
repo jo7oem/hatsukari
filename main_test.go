@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -74,7 +76,7 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 		},
 		{
 			name: "CLIOverridesEnv",
-			args: []string{"-site", "./other", "-addr", ":3000"},
+			args: []string{"--site", "./other", "--addr", ":3000"},
 			env: map[string]string{
 				"HATSUKARI_SITE_DIR": "/srv/site",
 				"HATSUKARI_ADDR":     ":9090",
@@ -103,7 +105,7 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 		},
 		{
 			name: "CLIOverridesConfig",
-			args: []string{"-config", "dummy", "-site", "/cli/site", "-otel-enabled=false", "-otel-endpoint=cli:4317", "-otel-insecure=true"},
+			args: []string{"--config", "dummy", "--site", "/cli/site", "--otel-enabled=false", "--otel-endpoint=cli:4317", "--otel-insecure=true"},
 			env:  map[string]string{},
 			prepare: func(t *testing.T) map[string]string {
 				t.Helper()
@@ -131,7 +133,7 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 		},
 		{
 			name: "PrintConfigExampleFlag",
-			args: []string{"-print-config-example"},
+			args: []string{"--print-config-example"},
 			env:  map[string]string{},
 			want: runtimeConfig{siteDir: "./sample", addr: ":8080", printConfigExample: true, otelEnabled: true},
 		},
@@ -144,28 +146,28 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 		},
 		{
 			name:            "ConfigFileNotFound",
-			args:            []string{"-config", "./does-not-exist.yaml"},
+			args:            []string{"--config", "./does-not-exist.yaml"},
 			env:             map[string]string{},
 			wantErr:         true,
 			wantErrContains: "no such file",
 		},
 		{
 			name:            "EmptySite",
-			args:            []string{"-site", " "},
+			args:            []string{"--site", " "},
 			env:             map[string]string{},
 			wantErr:         true,
 			wantErrContains: "siteDir must not be empty",
 		},
 		{
 			name:            "EmptyAddr",
-			args:            []string{"-addr", " "},
+			args:            []string{"--addr", " "},
 			env:             map[string]string{},
 			wantErr:         true,
 			wantErrContains: "addr must not be empty",
 		},
 		{
 			name:            "UnknownFlag",
-			args:            []string{"-unknown"},
+			args:            []string{"--unknown"},
 			env:             map[string]string{},
 			wantErr:         true,
 			wantErrContains: "flag provided but not defined",
@@ -180,7 +182,7 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 			maps.Copy(env, tt.env)
 			if tt.prepare != nil {
 				maps.Copy(env, tt.prepare(t))
-				if len(args) >= 2 && args[0] == "-config" && args[1] == "dummy" {
+				if len(args) >= 2 && args[0] == "--config" && args[1] == "dummy" {
 					args[1] = env["CONFIG_PATH"]
 				}
 			}
@@ -228,5 +230,32 @@ func TestMain_RuntimeConfigExampleYAML(t *testing.T) {
 	}
 	if conf.Telemetry.Enabled == nil || !*conf.Telemetry.Enabled {
 		t.Fatal("telemetry.enabled should be true in example")
+	}
+}
+
+func TestMain_ParseRuntimeConfig_Help(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	_, err := parseRuntimeConfigWithIO(
+		[]string{"--help"},
+		func(string) string { return "" },
+		&out,
+		&out,
+	)
+	if !errors.Is(err, errCommandHandled) {
+		t.Fatalf("parseRuntimeConfigWithIO() error = %v, want errCommandHandled", err)
+	}
+
+	help := out.String()
+	for _, expected := range []string{
+		"Markdown/HTML サイトを配信するローカルサーバ",
+		"例:",
+		"hatsukari --site ./sample --addr :8080",
+		"--print-config-example",
+	} {
+		if !strings.Contains(help, expected) {
+			t.Fatalf("help output does not contain %q", expected)
+		}
 	}
 }
