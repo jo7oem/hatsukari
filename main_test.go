@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -172,18 +173,13 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			args := append([]string(nil), tt.args...)
 			env := make(map[string]string, len(tt.env))
-			for k, v := range tt.env {
-				env[k] = v
-			}
+			maps.Copy(env, tt.env)
 			if tt.prepare != nil {
-				for k, v := range tt.prepare(t) {
-					env[k] = v
-				}
+				maps.Copy(env, tt.prepare(t))
 				if len(args) >= 2 && args[0] == "-config" && args[1] == "dummy" {
 					args[1] = env["CONFIG_PATH"]
 				}

@@ -89,9 +89,9 @@ func runtimeConfigExampleYAML() string {
 		SiteDir: "./sample",
 		Addr:    ":8080",
 		Telemetry: runtimeTelemetryConfigYML{
-			Enabled:          ptrBool(true),
+			Enabled:          new(true),
 			ExporterEndpoint: "otel-collector:4317",
-			Insecure:         ptrBool(true),
+			Insecure:         new(true),
 		},
 	}
 	b, err := yaml.Marshal(example)
@@ -100,8 +100,6 @@ func runtimeConfigExampleYAML() string {
 	}
 	return string(b)
 }
-
-func ptrBool(v bool) *bool { return &v }
 
 func extractConfigPathFromArgs(args []string, fallback string) (string, error) {
 	configPath := strings.TrimSpace(fallback)
@@ -118,8 +116,8 @@ func extractConfigPathFromArgs(args []string, fallback string) (string, error) {
 			i++
 			continue
 		}
-		if strings.HasPrefix(arg, "-config=") {
-			configPath = strings.TrimSpace(strings.TrimPrefix(arg, "-config="))
+		if after, ok := strings.CutPrefix(arg, "-config="); ok {
+			configPath = strings.TrimSpace(after)
 		}
 	}
 	return configPath, nil
