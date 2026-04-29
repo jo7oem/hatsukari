@@ -22,7 +22,6 @@ func TestDefinition_ParseRoute(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			handled, tagKey, invalid := ParseRoute(tt.relPath)
@@ -79,7 +78,6 @@ func TestDefinition_BuildLocalizedPublicValue(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := BuildLocalizedPublicValue(tt.lang, tt.values, tt.fallback); !reflect.DeepEqual(got, tt.want) {
