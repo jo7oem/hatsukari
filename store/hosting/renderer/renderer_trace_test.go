@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/jo7oem/hatsukari/logging"
+	"github.com/jo7oem/hatsukari/telemetry"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -31,7 +32,7 @@ func TestRenderer_ServeHTTP_SpanHierarchy(t *testing.T) {
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(logging.InjectTracer(req.Context(), tracer))
+	req = req.WithContext(telemetry.InjectTracer(req.Context(), tracer))
 	rec := httptest.NewRecorder()
 
 	r.ServeHTTP(rec, req)
@@ -65,7 +66,7 @@ func TestRenderer_ServeHTTP_ErrorRecordsSpan(t *testing.T) {
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/broken", nil)
-	req = req.WithContext(logging.InjectTracer(req.Context(), tracer))
+	req = req.WithContext(telemetry.InjectTracer(req.Context(), tracer))
 	rec := httptest.NewRecorder()
 
 	r.ServeHTTP(rec, req)
@@ -117,7 +118,7 @@ func TestRenderer_StartSpan_UsesInjectedTracer(t *testing.T) {
 	tracer := provider.Tracer("test/injected")
 	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
 
-	ctx, span := logging.StartSpan(logging.InjectTracer(t.Context(), tracer), "custom")
+	ctx, span := telemetry.StartSpan(telemetry.InjectTracer(t.Context(), tracer), "custom")
 	span.End()
 	_ = ctx
 

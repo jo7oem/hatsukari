@@ -1,4 +1,4 @@
-package logging
+package telemetry
 
 import (
 	"context"
@@ -23,7 +23,7 @@ var (
 	defaultTracerName        = "hatsukari"
 )
 
-type TelemetryConfig struct {
+type Config struct {
 	ServiceName      string
 	ExporterEndpoint string
 	Insecure         bool
@@ -31,7 +31,7 @@ type TelemetryConfig struct {
 
 type tracerContextKey struct{}
 
-func InitTelemetry(ctx context.Context, conf TelemetryConfig) (func(context.Context) error, error) {
+func Init(ctx context.Context, conf Config) (func(context.Context) error, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}

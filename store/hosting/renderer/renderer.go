@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
+	"github.com/jo7oem/hatsukari/telemetry"
 	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/extension"
@@ -100,7 +101,7 @@ func (r *Renderer) Render() ([]byte, error) {
 }
 
 func (r *Renderer) render(ctx context.Context) ([]byte, error) {
-	spanCtx, span := logging.StartSpan(ctx, "renderer.Render",
+	spanCtx, span := telemetry.StartSpan(ctx, "renderer.Render",
 		trace.WithAttributes(
 			attribute.Int("renderer.source.bytes", len(r.source)),
 			attribute.String("renderer.content_template", r.contentTemplate),
@@ -109,7 +110,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 	)
 	defer span.End()
 
-	_, extractMetaSpan := logging.StartSpan(spanCtx, "renderer.extractMeta")
+	_, extractMetaSpan := telemetry.StartSpan(spanCtx, "renderer.extractMeta")
 	metaData, err := ExtractMeta(r.source)
 	extractMetaSpan.End()
 	if err != nil {
@@ -141,7 +142,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 	// 本文テンプレートではシステム変数を優先する
 	maps.Copy(markdownTemplateData, pageData)
 
-	_, expandMarkdownSpan := logging.StartSpan(spanCtx, "renderer.expandMarkdownTemplate")
+	_, expandMarkdownSpan := telemetry.StartSpan(spanCtx, "renderer.expandMarkdownTemplate")
 	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, markdownTemplateData)
 	expandMarkdownSpan.End()
 	if err != nil {
@@ -152,7 +153,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 
 	htmlBuffer := bytes.NewBuffer(nil)
 	parserContext := parser.NewContext()
-	_, markdownConvertSpan := logging.StartSpan(spanCtx, "renderer.markdownConvert")
+	_, markdownConvertSpan := telemetry.StartSpan(spanCtx, "renderer.markdownConvert")
 	if err := markdown.Convert(expandedMarkdown, htmlBuffer, parser.WithContext(parserContext)); err != nil {
 		markdownConvertSpan.RecordError(err)
 		markdownConvertSpan.End()
@@ -168,7 +169,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 
 	out := htmlBuffer.Bytes()
 	if r.contentTemplateFS != nil && r.contentTemplate != "" {
-		_, contentTemplateSpan := logging.StartSpan(spanCtx, "renderer.applyContentTemplate",
+		_, contentTemplateSpan := telemetry.StartSpan(spanCtx, "renderer.applyContentTemplate",
 			trace.WithAttributes(attribute.String("renderer.content_template", r.contentTemplate)),
 		)
 		out, err = renderPageTemplate(r.contentTemplateFS, r.contentTemplate, pageData, out)
@@ -182,7 +183,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 
 	contentsData["body"] = template.HTML(string(out))
 	if r.siteTemplateFS != nil && r.siteTemplate != "" {
-		_, siteTemplateSpan := logging.StartSpan(spanCtx, "renderer.applySiteTemplate",
+		_, siteTemplateSpan := telemetry.StartSpan(spanCtx, "renderer.applySiteTemplate",
 			trace.WithAttributes(attribute.String("renderer.site_template", r.siteTemplate)),
 		)
 		out, err = renderPageTemplate(r.siteTemplateFS, r.siteTemplate, pageData, out)
@@ -198,7 +199,7 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 }
 
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	ctx, span := logging.StartSpan(req.Context(), "renderer.ServeHTTP",
+	ctx, span := telemetry.StartSpan(req.Context(), "renderer.ServeHTTP",
 		trace.WithAttributes(attribute.String("http.path", req.URL.Path)),
 	)
 	defer span.End()

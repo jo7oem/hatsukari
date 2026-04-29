@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jo7oem/hatsukari/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -31,9 +32,9 @@ func TestSite_ServeHTTP_HTTPRequestsTotal(t *testing.T) {
 
 			reader := sdkmetric.NewManualReader()
 			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-			metrics, err := newSiteMetrics(provider.Meter("test/site"))
+			metrics, err := telemetry.NewSiteMetrics(provider.Meter("test/site"))
 			if err != nil {
-				t.Fatalf("newSiteMetrics() error = %v", err)
+				t.Fatalf("NewSiteMetrics() error = %v", err)
 			}
 
 			s := newTestSiteForAccessLog(t, newDiscardLogger())
@@ -57,8 +58,8 @@ func TestSite_NewSiteMetrics_RuntimeGauges(t *testing.T) {
 
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	if _, err := newSiteMetrics(provider.Meter("test/site")); err != nil {
-		t.Fatalf("newSiteMetrics() error = %v", err)
+	if _, err := telemetry.NewSiteMetrics(provider.Meter("test/site")); err != nil {
+		t.Fatalf("NewSiteMetrics() error = %v", err)
 	}
 
 	goroutinesMetric := collectMetricData(t, reader, "hatsukari_runtime_goroutines")

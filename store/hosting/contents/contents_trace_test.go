@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
+	"github.com/jo7oem/hatsukari/telemetry"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -39,7 +39,7 @@ func TestContent_ServeHTTP_SpanHierarchy(t *testing.T) {
 	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(logging.InjectTracer(req.Context(), tracer))
+	req = req.WithContext(telemetry.InjectTracer(req.Context(), tracer))
 	rec := httptest.NewRecorder()
 
 	content.ServeHTTP(rec, req)
@@ -86,7 +86,7 @@ func TestContent_ServeHTTP_RenderTagsPageSpan(t *testing.T) {
 	t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
 
 	req := httptest.NewRequest(http.MethodGet, "/tags/known", nil)
-	req = req.WithContext(logging.InjectTracer(req.Context(), tracer))
+	req = req.WithContext(telemetry.InjectTracer(req.Context(), tracer))
 	rec := httptest.NewRecorder()
 
 	content.ServeHTTP(rec, req)

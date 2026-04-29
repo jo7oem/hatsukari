@@ -1,4 +1,4 @@
-package logging
+package telemetry
 
 import (
 	"context"
@@ -61,16 +61,16 @@ func TestTelemetry_NewTelemetryResource(t *testing.T) {
 	}
 }
 
-func TestTelemetry_InitTelemetry_EmptyEndpoint(t *testing.T) {
+func TestTelemetry_Init_EmptyEndpoint(t *testing.T) {
 	previousTracerName := defaultTracerName
 	defaultTracerName = "hatsukari"
 	t.Cleanup(func() {
 		defaultTracerName = previousTracerName
 	})
 
-	shutdown, err := InitTelemetry(context.Background(), TelemetryConfig{ServiceName: "telemetry-test"})
+	shutdown, err := Init(context.Background(), Config{ServiceName: "telemetry-test"})
 	if err != nil {
-		t.Fatalf("InitTelemetry() error = %v", err)
+		t.Fatalf("Init() error = %v", err)
 	}
 	if shutdown == nil {
 		t.Fatal("shutdown function is nil")

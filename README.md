@@ -6,7 +6,8 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 - `site` がサイト設定とルーティング全体を管理
 - `contents` が Content ツリー（子 Content を含む）を解決
 - `renderer` が Front Matter 付き Markdown を HTML 化しテンプレート適用
-- `logging` が `slog` ベースの薄いラッパーを提供
+- `logging` が `slog` ベースのロガーを提供
+- `telemetry` が OpenTelemetry（trace/metrics）の初期化と計測を提供
 
 ## API 利用時の注意
 - `site.OpenSiteDir(path, logger)` は `logger` に `nil` を許可しません。

@@ -17,6 +17,7 @@ import (
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/renderer"
+	"github.com/jo7oem/hatsukari/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
@@ -181,7 +182,7 @@ func openContentDir(fs *os.Root, path string, parent *Content, logger *logging.L
 }
 
 func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx, span := logging.StartSpan(r.Context(), "contents.ServeHTTP",
+	ctx, span := telemetry.StartSpan(r.Context(), "contents.ServeHTTP",
 		trace.WithAttributes(
 			attribute.String("contents.path", c.Path()),
 			attribute.String("http.path", r.URL.Path),
@@ -202,7 +203,7 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 5. /posts/index.md
 // また、セキュリティ上の理由から、相対パスが '.' で始まっている場合は 404 Not Found を返す。
 func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
-	ctx, span := logging.StartSpan(r.Context(), "contents.customRoutingHandler",
+	ctx, span := telemetry.StartSpan(r.Context(), "contents.customRoutingHandler",
 		trace.WithAttributes(
 			attribute.String("contents.path", c.Path()),
 			attribute.String("http.path", r.URL.Path),
@@ -229,7 +230,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, resolvePathSpan := logging.StartSpan(r.Context(), "contents.resolveContentPath",
+	_, resolvePathSpan := telemetry.StartSpan(r.Context(), "contents.resolveContentPath",
 		trace.WithAttributes(attribute.String("contents.rel_path", relPath)),
 	)
 	resolvedPath, ok := c.resolveContentPathByPriority(relPath)
@@ -246,7 +247,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, readMarkdownSpan := logging.StartSpan(r.Context(), "contents.readMarkdown",
+		_, readMarkdownSpan := telemetry.StartSpan(r.Context(), "contents.readMarkdown",
 			trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
 		)
 		f, err := c.root.Open(resolvedPath)
@@ -269,7 +270,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if c.isPostsContent() && !isIndexMarkdownPath(resolvedPath) {
-			_, postMetaSpan := logging.StartSpan(r.Context(), "contents.resolvePostMeta",
+			_, postMetaSpan := telemetry.StartSpan(r.Context(), "contents.resolvePostMeta",
 				trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
 			)
 			now := c.now()
@@ -287,7 +288,7 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		_, templateResolveSpan := logging.StartSpan(r.Context(), "contents.resolveTemplates",
+		_, templateResolveSpan := telemetry.StartSpan(r.Context(), "contents.resolveTemplates",
 			trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
 		)
 		templateFS, templateName, err := c.resolveTemplate(resolvedPath)
@@ -349,7 +350,7 @@ func (c *Content) tryServeTagsPage(w http.ResponseWriter, r *http.Request, relPa
 }
 
 func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey string) error {
-	ctx, span := logging.StartSpan(r.Context(), "contents.renderTagsPage",
+	ctx, span := telemetry.StartSpan(r.Context(), "contents.renderTagsPage",
 		trace.WithAttributes(
 			attribute.String("contents.path", c.Path()),
 			attribute.String("contents.tag_key", tagKey),

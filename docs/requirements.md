@@ -9,6 +9,8 @@
 対象コード:
 - `main.go`
 - `logging/logger.go`
+- `telemetry/telemetry.go`
+- `telemetry/site_metrics.go`
 - `store/hosting/renderer/renderer.go`
 - `store/hosting/contents/contents.go`
 - `store/hosting/site/site.go`
@@ -116,11 +118,11 @@
   - これら設定値の変更は起動時の初期化順序規約で 1 回のみ行う。
   - 開発用途として OTel 送信を明示的に無効化して起動できる。
 - 現実装（現状）
-  - `logging/otel.go` で OTLP exporter と tracer provider を初期化し、context 注入 API を提供する。
-  - `main.go` は `otelEnabled=false` の場合 `InitTelemetry` を呼ばない。
+  - `telemetry/telemetry.go` で OTLP exporter と tracer provider を初期化し、context 注入 API を提供する。
+  - `main.go` は `otelEnabled=false` の場合 `telemetry.Init` を呼ばない。
   - `compose.yaml` は `otel-collector` を経由して Jaeger/Tempo を起動する。
 - 実装根拠
-  - `logging/otel.go` の `InitTelemetry`, `InjectTracer`, `TracerFromContext`, `StartSpan`。
+  - `telemetry/telemetry.go` の `Init`, `InjectTracer`, `TracerFromContext`, `StartSpan`。
   - `otel/collector-config.yaml` の traces pipeline。
   - `compose.yaml` の `app -> otel-collector` 依存。
 - テスト根拠
@@ -139,8 +141,9 @@
   - `otel/collector-config.yaml` の metrics pipeline が Prometheus exporter（`:9464`）へ出力する。
   - `compose.yaml` で `prometheus` と `grafana` を起動し、Grafana datasource を provision する。
 - 実装根拠
-  - `store/hosting/site/site.go` の `initSiteMetrics`, `ServeHTTP`。
-  - `logging/otel.go` の `newMeterProvider`。
+  - `store/hosting/site/site.go` の `ServeHTTP` と `telemetry.InitSiteMetrics` 呼び出し。
+  - `telemetry/site_metrics.go` の `NewSiteMetrics`, `RecordHTTPRequest`。
+  - `telemetry/telemetry.go` の `newMeterProvider`。
   - `otel/prometheus/prometheus.yml`, `otel/grafana/provisioning/datasources/prometheus.yaml`。
 - テスト根拠
   - （未整備）

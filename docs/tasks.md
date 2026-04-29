@@ -4,6 +4,8 @@
 - `docs/requirements.md`
 - `store/hosting/site/config.go`
 - `store/hosting/site/site.go`
+- `telemetry/telemetry.go`
+- `telemetry/site_metrics.go`
 - `store/hosting/contents/contents.go`
 - `store/hosting/renderer/renderer.go`
 - `store/hosting/renderer/template_render.go`

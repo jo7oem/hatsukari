@@ -14,6 +14,7 @@ import (
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/site"
+	"github.com/jo7oem/hatsukari/telemetry"
 	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v3"
 )
@@ -238,7 +239,7 @@ func run(args []string, getenv func(string) string, out io.Writer, errOut io.Wri
 	ctx := context.Background()
 	shutdownTelemetry := func(context.Context) error { return nil }
 	if conf.otelEnabled {
-		shutdownTelemetry, err = logging.InitTelemetry(ctx, logging.TelemetryConfig{
+		shutdownTelemetry, err = telemetry.Init(ctx, telemetry.Config{
 			ServiceName:      "hatsukari",
 			ExporterEndpoint: conf.otelEndpoint,
 			Insecure:         conf.otelInsecure,

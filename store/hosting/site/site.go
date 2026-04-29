@@ -1,7 +1,6 @@
 package site
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,30 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
+	"github.com/jo7oem/hatsukari/telemetry"
 )
-
-var (
-	defaultSiteMeter = otel.Meter("hatsukari/site")
-
-	siteMetricsInitOnce sync.Once
-	siteMetricsInitErr  error
-	defaultSiteMetrics  *siteMetrics
-)
-
-type siteMetrics struct {
-	httpRequestsTotal metric.Int64Counter
-}
 
 type SiteConfig struct {
 	Title            string         `yaml:"title"`
@@ -84,7 +66,7 @@ func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
 		return nil, err
 	}
 
-	metrics, metricsErr := initSiteMetrics()
+	metrics, metricsErr := telemetry.InitSiteMetrics()
 	if metricsErr != nil {
 		logger.Error("failed to initialize site metrics", metricsErr)
 	}
@@ -94,57 +76,6 @@ func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
 
 }
 
-func initSiteMetrics() (*siteMetrics, error) {
-	siteMetricsInitOnce.Do(func() {
-		defaultSiteMetrics, siteMetricsInitErr = newSiteMetrics(defaultSiteMeter)
-	})
-
-	return defaultSiteMetrics, siteMetricsInitErr
-}
-
-func newSiteMetrics(meter metric.Meter) (*siteMetrics, error) {
-	if meter == nil {
-		meter = defaultSiteMeter
-	}
-
-	httpRequestsTotal, err := meter.Int64Counter(
-		"hatsukari_http_requests_total",
-		metric.WithDescription("HTTP requests total grouped by method and status code"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	goRoutinesGauge, err := meter.Int64ObservableGauge(
-		"hatsukari_runtime_goroutines",
-		metric.WithDescription("Number of goroutines"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	heapAllocGauge, err := meter.Int64ObservableGauge(
-		"hatsukari_runtime_heap_alloc_bytes",
-		metric.WithDescription("Allocated heap bytes"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
-		var ms runtime.MemStats
-		runtime.ReadMemStats(&ms)
-		observer.ObserveInt64(goRoutinesGauge, int64(runtime.NumGoroutine()))
-		observer.ObserveInt64(heapAllocGauge, int64(ms.HeapAlloc))
-		return nil
-	}, goRoutinesGauge, heapAllocGauge)
-	if err != nil {
-		return nil, err
-	}
-
-	return &siteMetrics{httpRequestsTotal: httpRequestsTotal}, nil
-}
-
 type Site struct {
 	config   SiteConfig
 	fs       *os.Root
@@ -152,7 +83,7 @@ type Site struct {
 	vars     map[string]any
 	logger   *logging.Logger
 	access   *logging.Logger
-	metrics  *siteMetrics
+	metrics  *telemetry.SiteMetrics
 	tracer   string
 	location *time.Location
 	root     *contents.Content
@@ -192,8 +123,8 @@ func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestPath := r.URL.Path
 	responseWriter := &accessLogResponseWriter{ResponseWriter: w}
 
-	reqCtx := logging.InjectTracer(r.Context(), logging.Tracer(s.tracer))
-	spanCtx, span := logging.StartSpan(reqCtx, r.Method+" "+requestPath)
+	reqCtx := telemetry.InjectTracer(r.Context(), telemetry.Tracer(s.tracer))
+	spanCtx, span := telemetry.StartSpan(reqCtx, r.Method+" "+requestPath)
 	defer span.End()
 
 	s.mux.ServeHTTP(responseWriter, r.WithContext(spanCtx))
@@ -218,14 +149,7 @@ func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("remoteAddr", remoteAddrHost(r.RemoteAddr)),
 	)
 
-	if s.metrics != nil && s.metrics.httpRequestsTotal != nil {
-		s.metrics.httpRequestsTotal.Add(spanCtx, 1,
-			metric.WithAttributes(
-				attribute.String("http.method", r.Method),
-				attribute.String("http.status_code", strconv.Itoa(status)),
-			),
-		)
-	}
+	s.metrics.RecordHTTPRequest(spanCtx, r.Method, status)
 }
 
 func (s *Site) Close() error {
