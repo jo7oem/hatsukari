@@ -17,6 +17,8 @@ import (
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/renderer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -179,7 +181,15 @@ func openContentDir(fs *os.Root, path string, parent *Content, logger *logging.L
 }
 
 func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c.mux.ServeHTTP(w, r)
+	ctx, span := logging.StartSpan(r.Context(), "contents.ServeHTTP",
+		trace.WithAttributes(
+			attribute.String("contents.path", c.Path()),
+			attribute.String("http.path", r.URL.Path),
+		),
+	)
+	defer span.End()
+
+	c.mux.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // customRoutingHandler は、URL パスをコンテンツのルートからの相対パスに変換し、適切なファイルを提供するためのハンドラー。
@@ -192,6 +202,15 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 5. /posts/index.md
 // また、セキュリティ上の理由から、相対パスが '.' で始まっている場合は 404 Not Found を返す。
 func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, span := logging.StartSpan(r.Context(), "contents.customRoutingHandler",
+		trace.WithAttributes(
+			attribute.String("contents.path", c.Path()),
+			attribute.String("http.path", r.URL.Path),
+		),
+	)
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	relPath, ok := requestURLToRelPath(c.Path(), r.URL.Path)
 	if !ok || isHiddenOrUnsafeRelPath(relPath) {
 		http.NotFound(w, r)
@@ -210,7 +229,11 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	_, resolvePathSpan := logging.StartSpan(r.Context(), "contents.resolveContentPath",
+		trace.WithAttributes(attribute.String("contents.rel_path", relPath)),
+	)
 	resolvedPath, ok := c.resolveContentPathByPriority(relPath)
+	resolvePathSpan.End()
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -223,24 +246,37 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		_, readMarkdownSpan := logging.StartSpan(r.Context(), "contents.readMarkdown",
+			trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
+		)
 		f, err := c.root.Open(resolvedPath)
 		if err != nil {
+			readMarkdownSpan.RecordError(err)
+			readMarkdownSpan.End()
+			span.RecordError(err)
 			c.logError("failed to open markdown file", err, slog.String("path", resolvedPath))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		defer func() { _ = f.Close() }()
 		b, err := io.ReadAll(f)
+		readMarkdownSpan.End()
 		if err != nil {
+			span.RecordError(err)
 			c.logError("failed to read markdown file", err, slog.String("path", resolvedPath))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		if c.isPostsContent() && !isIndexMarkdownPath(resolvedPath) {
+			_, postMetaSpan := logging.StartSpan(r.Context(), "contents.resolvePostMeta",
+				trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
+			)
 			now := c.now()
 			entry, ok, entryErr := c.postEntryByResolvedPath(resolvedPath)
+			postMetaSpan.End()
 			if entryErr != nil {
+				span.RecordError(entryErr)
 				c.logError("failed to load post metadata", entryErr, slog.String("path", resolvedPath))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -251,15 +287,23 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		_, templateResolveSpan := logging.StartSpan(r.Context(), "contents.resolveTemplates",
+			trace.WithAttributes(attribute.String("contents.resolved_path", resolvedPath)),
+		)
 		templateFS, templateName, err := c.resolveTemplate(resolvedPath)
 		if err != nil {
+			templateResolveSpan.RecordError(err)
+			templateResolveSpan.End()
+			span.RecordError(err)
 			c.logError("failed to resolve template", err, slog.String("path", resolvedPath))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		siteTemplateFS, siteTemplateName, err := c.resolveSiteTemplate(resolvedPath)
+		templateResolveSpan.End()
 		if err != nil {
+			span.RecordError(err)
 			c.logError("failed to resolve site template", err, slog.String("path", resolvedPath))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -305,6 +349,14 @@ func (c *Content) tryServeTagsPage(w http.ResponseWriter, r *http.Request, relPa
 }
 
 func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey string) error {
+	_, span := logging.StartSpan(r.Context(), "contents.renderTagsPage",
+		trace.WithAttributes(
+			attribute.String("contents.path", c.Path()),
+			attribute.String("contents.tag_key", tagKey),
+		),
+	)
+	defer span.End()
+
 	postsData := c.requestContentsPosts()
 	byTag, _ := postsData["byTag"].(map[string]TagFeed)
 	if tagKey != "" {
@@ -320,14 +372,18 @@ func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey 
 
 	templateFS, templateName, err := c.resolveNamedTemplate("tags.md")
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	if templateFS == nil || templateName == "" {
-		return fmt.Errorf("tags template not found")
+		err = fmt.Errorf("tags template not found")
+		span.RecordError(err)
+		return err
 	}
 
 	siteTemplateFS, siteTemplateName, err := c.resolveSiteTemplate("tags.md")
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
