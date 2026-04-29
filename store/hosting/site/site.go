@@ -180,10 +180,11 @@ func remoteAddrHost(remoteAddr string) string {
 
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startedAt := time.Now()
+	requestPath := r.URL.Path
 	responseWriter := &accessLogResponseWriter{ResponseWriter: w}
 
 	reqCtx := logging.InjectTracer(r.Context(), logging.Tracer(s.tracer))
-	spanCtx, span := logging.StartSpan(reqCtx, r.Method+" "+r.URL.Path)
+	spanCtx, span := logging.StartSpan(reqCtx, r.Method+" "+requestPath)
 	defer span.End()
 
 	s.mux.ServeHTTP(responseWriter, r.WithContext(spanCtx))
@@ -200,7 +201,7 @@ func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	accessLogger.InfoContext(spanCtx, "request",
 		slog.String("method", r.Method),
-		slog.String("path", r.URL.Path),
+		slog.String("path", requestPath),
 		slog.Int("status", status),
 		slog.Int("responseBytes", responseWriter.bytes),
 		slog.Int64("durationMs", time.Since(startedAt).Milliseconds()),

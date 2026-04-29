@@ -41,6 +41,32 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 			want: runtimeConfig{siteDir: "./sample", addr: ":18080"},
 		},
 		{
+			name: "TrimWhitespaceEnv",
+			args: nil,
+			env: map[string]string{
+				"HATSUKARI_SITE_DIR": "  ./trimmed  ",
+				"HATSUKARI_ADDR":     "  :8181  ",
+			},
+			want: runtimeConfig{siteDir: "./trimmed", addr: ":8181"},
+		},
+		{
+			name: "AddrEnvOverridesPort",
+			args: nil,
+			env: map[string]string{
+				"HATSUKARI_ADDR": ":9090",
+				"PORT":           "18080",
+			},
+			want: runtimeConfig{siteDir: "./sample", addr: ":9090"},
+		},
+		{
+			name: "PortWithColon",
+			args: nil,
+			env: map[string]string{
+				"PORT": ":28080",
+			},
+			want: runtimeConfig{siteDir: "./sample", addr: ":28080"},
+		},
+		{
 			name: "CLIOverridesEnv",
 			args: []string{"-site", "./other", "-addr", ":3000"},
 			env: map[string]string{
@@ -62,6 +88,13 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 			env:             map[string]string{},
 			wantErr:         true,
 			wantErrContains: "addr must not be empty",
+		},
+		{
+			name:            "UnknownFlag",
+			args:            []string{"-unknown"},
+			env:             map[string]string{},
+			wantErr:         true,
+			wantErrContains: "flag provided but not defined",
 		},
 	}
 
