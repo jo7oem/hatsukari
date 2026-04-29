@@ -11,6 +11,8 @@ processors:
 
 exporters:
   debug:
+  prometheus:
+    endpoint: 0.0.0.0:9464
   otlp_grpc/jaeger:
     endpoint: jaeger:4317
     tls:
@@ -26,6 +28,10 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [debug, otlp_grpc/jaeger, otlp_grpc/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
 
 
 

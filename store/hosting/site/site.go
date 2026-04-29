@@ -1,6 +1,7 @@
 package site
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,11 +11,28 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
 	"github.com/jo7oem/hatsukari/store/hosting/contents"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+)
+
+var (
+	siteMeter = otel.Meter("hatsukari/site")
+
+	siteMetricsInitOnce sync.Once
+	siteMetricsInitErr  error
+
+	httpRequestsTotal metric.Int64Counter
+	goRoutinesGauge   metric.Int64ObservableGauge
+	heapAllocGauge    metric.Int64ObservableGauge
 )
 
 type SiteConfig struct {
@@ -65,8 +83,58 @@ func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
 		return nil, err
 	}
 
+	if err := initSiteMetrics(); err != nil {
+		logger.Error("failed to initialize site metrics", err)
+	}
+
 	return site, nil
 
+}
+
+func initSiteMetrics() error {
+	siteMetricsInitOnce.Do(func() {
+		var err error
+
+		httpRequestsTotal, err = siteMeter.Int64Counter(
+			"hatsukari_http_requests_total",
+			metric.WithDescription("HTTP requests total grouped by method and status code"),
+		)
+		if err != nil {
+			siteMetricsInitErr = err
+			return
+		}
+
+		goRoutinesGauge, err = siteMeter.Int64ObservableGauge(
+			"hatsukari_runtime_goroutines",
+			metric.WithDescription("Number of goroutines"),
+		)
+		if err != nil {
+			siteMetricsInitErr = err
+			return
+		}
+
+		heapAllocGauge, err = siteMeter.Int64ObservableGauge(
+			"hatsukari_runtime_heap_alloc_bytes",
+			metric.WithDescription("Allocated heap bytes"),
+		)
+		if err != nil {
+			siteMetricsInitErr = err
+			return
+		}
+
+		_, err = siteMeter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
+			var ms runtime.MemStats
+			runtime.ReadMemStats(&ms)
+			observer.ObserveInt64(goRoutinesGauge, int64(runtime.NumGoroutine()))
+			observer.ObserveInt64(heapAllocGauge, int64(ms.HeapAlloc))
+			return nil
+		}, goRoutinesGauge, heapAllocGauge)
+		if err != nil {
+			siteMetricsInitErr = err
+		}
+	})
+
+	return siteMetricsInitErr
 }
 
 type Site struct {
@@ -139,6 +207,15 @@ func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("userAgent", strings.TrimSpace(r.UserAgent())),
 		slog.String("remoteAddr", remoteAddrHost(r.RemoteAddr)),
 	)
+
+	if httpRequestsTotal != nil {
+		httpRequestsTotal.Add(spanCtx, 1,
+			metric.WithAttributes(
+				attribute.String("http.method", r.Method),
+				attribute.String("http.status_code", strconv.Itoa(status)),
+			),
+		)
+	}
 }
 
 func (s *Site) Close() error {

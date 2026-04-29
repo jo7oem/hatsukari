@@ -110,6 +110,25 @@
 - 差分
   - collector 経由での収集確認は手動確認手順に依存する。
 
+### RQ-105 OpenTelemetry メトリクスを collector 経由で収集できること
+- 仕様（期待）
+  - `hatsukari_runtime_goroutines` と `hatsukari_runtime_heap_alloc_bytes` を収集できる。
+  - `hatsukari_http_requests_total` を `http_method` と `http_status_code` の属性付きで収集できる。
+  - collector は Prometheus exporter でメトリクスを公開できる。
+  - Grafana は Prometheus datasource 経由で上記メトリクスを可視化できる。
+- 現実装（現状）
+  - `site.ServeHTTP` でアクセスカウンタを加算し、runtime メトリクスを observable gauge で公開する。
+  - `otel/collector-config.yaml` の metrics pipeline が Prometheus exporter（`:9464`）へ出力する。
+  - `compose.yaml` で `prometheus` と `grafana` を起動し、Grafana datasource を provision する。
+- 実装根拠
+  - `store/hosting/site/site.go` の `initSiteMetrics`, `ServeHTTP`。
+  - `logging/otel.go` の `newMeterProvider`。
+  - `otel/prometheus/prometheus.yml`, `otel/grafana/provisioning/datasources/prometheus.yaml`。
+- テスト根拠
+  - （未整備）
+- 差分
+  - collector/Prometheus/Grafana を含む E2E 自動検証は未導入。
+
 ---
 
 ## 5. レンダリング要件（`renderer`）

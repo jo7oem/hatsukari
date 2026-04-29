@@ -92,8 +92,14 @@ docker compose -f compose.yaml logs --tail=200 otel-collector
 
 - Jaeger UI: `http://127.0.0.1:16686`
 - Grafana UI: `http://127.0.0.1:3000`
+- Prometheus UI: `http://127.0.0.1:9090`
 
 Grafana は anonymous login 有効のため、起動直後から Tempo datasource でトレース確認できます。
+また Prometheus datasource と `hatsukari Metrics` ダッシュボードが自動で読み込まれ、以下のメトリクスを可視化できます。
+
+- `hatsukari_http_requests_total`（`http_status_code` ごとのアクセスカウンタ）
+- `hatsukari_runtime_goroutines`（goroutine 数）
+- `hatsukari_runtime_heap_alloc_bytes`（ヒープ使用量）
 
 ## ドキュメント
 - 要件仕様（正本）: `docs/requirements.md`

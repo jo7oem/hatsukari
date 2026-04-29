@@ -31,6 +31,7 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
+      - "9464:9464"
 
   jaeger:
     image: "jaegertracing/all-in-one:1.64.0"
@@ -57,8 +58,20 @@ services:
       - ./otel/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - tempo
+      - prometheus
     ports:
       - "3000:3000"
+
+  prometheus:
+    image: "prom/prometheus:v3.5.0"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./otel/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - otel-collector
+    ports:
+      - "9090:9090"
 volumes:
   modcache:
   build_cache:
