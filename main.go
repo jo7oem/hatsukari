@@ -81,7 +81,7 @@ func main() {
 	}
 	defer func() { _ = shutdownTelemetry(ctx) }()
 
-	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
+	logger := logging.NewLogger(slog.NewJSONHandler(os.Stdout, nil), "hatsukari")
 
 	siteMap, err := site.OpenSiteDir(conf.siteDir, logger)
 	if err != nil {

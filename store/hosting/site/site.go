@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -54,6 +55,7 @@ func OpenSiteDir(path string, logger *logging.Logger) (*Site, error) {
 		config:   *conf,
 		mux:      http.NewServeMux(),
 		logger:   logger,
+		access:   logger.WithGroup("access"),
 		tracer:   "hatsukari/site",
 		location: location,
 	}
@@ -73,18 +75,70 @@ type Site struct {
 	mux      *http.ServeMux
 	vars     map[string]any
 	logger   *logging.Logger
+	access   *logging.Logger
 	tracer   string
 	location *time.Location
 	root     *contents.Content
 	latest   int
 }
 
+type accessLogResponseWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *accessLogResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *accessLogResponseWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(b)
+	w.bytes += n
+	return n, err
+}
+
+func remoteAddrHost(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return strings.TrimSpace(remoteAddr)
+	}
+	return strings.TrimSpace(host)
+}
+
 func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	startedAt := time.Now()
+	responseWriter := &accessLogResponseWriter{ResponseWriter: w}
+
 	reqCtx := logging.InjectTracer(r.Context(), logging.Tracer(s.tracer))
 	spanCtx, span := logging.StartSpan(reqCtx, r.Method+" "+r.URL.Path)
 	defer span.End()
 
-	s.mux.ServeHTTP(w, r.WithContext(spanCtx))
+	s.mux.ServeHTTP(responseWriter, r.WithContext(spanCtx))
+
+	status := responseWriter.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+
+	accessLogger := s.access
+	if accessLogger == nil {
+		accessLogger = s.logger
+	}
+
+	accessLogger.InfoContext(spanCtx, "request",
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path),
+		slog.Int("status", status),
+		slog.Int("responseBytes", responseWriter.bytes),
+		slog.Int64("durationMs", time.Since(startedAt).Milliseconds()),
+		slog.String("userAgent", strings.TrimSpace(r.UserAgent())),
+		slog.String("remoteAddr", remoteAddrHost(r.RemoteAddr)),
+	)
 }
 
 func (s *Site) Close() error {
