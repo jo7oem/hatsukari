@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
+	contentsposts "github.com/jo7oem/hatsukari/store/hosting/contents/posts"
+	contentsrendering "github.com/jo7oem/hatsukari/store/hosting/contents/rendering"
+	contentstags "github.com/jo7oem/hatsukari/store/hosting/contents/tags"
 	"github.com/jo7oem/hatsukari/store/hosting/renderer"
 	"github.com/jo7oem/hatsukari/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,97 +33,20 @@ const (
 	ContentTypePosts = "posts"
 )
 
-type Visibility string
+type Visibility = contentsposts.Visibility
 
 const (
-	VisibilityPublic     Visibility = "public"
-	VisibilityUnlisted   Visibility = "unlisted"
-	VisibilityDirectOnly Visibility = "directOnly"
-	VisibilityPrivate    Visibility = "private"
+	VisibilityPublic     = contentsposts.VisibilityPublic
+	VisibilityUnlisted   = contentsposts.VisibilityUnlisted
+	VisibilityDirectOnly = contentsposts.VisibilityDirectOnly
+	VisibilityPrivate    = contentsposts.VisibilityPrivate
 )
 
-type Revision struct {
-	RevisedAt time.Time
-	Summary   string
-}
-
-type TagDefinition struct {
-	DefaultLang string            `yaml:"defaultLang,omitempty"`
-	Label       map[string]string `yaml:"label,omitempty"`
-	About       map[string]string `yaml:"about,omitempty"`
-}
-
-type PostTag struct {
-	Key   string
-	URL   string
-	Label map[string]string
-	About map[string]string
-}
-
-type TagFeed struct {
-	Key   string
-	URL   string
-	Count int
-	Label map[string]string
-	About map[string]string
-	Posts []PostEntry
-}
-
-type PostEntry struct {
-	URL        string
-	Title      string
-	PostedAt   time.Time
-	PublishAt  *time.Time
-	Visibility Visibility
-	Tags       []PostTag
-	Summary    string
-	Revisions  []Revision
-}
-
-func (p PostEntry) IsDirectVisible(now time.Time) bool {
-	if !p.isPublishedAt(now) {
-		return false
-	}
-	switch p.Visibility {
-	case VisibilityPublic, VisibilityUnlisted, VisibilityDirectOnly:
-		return true
-	default:
-		return false
-	}
-}
-
-func (p PostEntry) IsListVisible(now time.Time) bool {
-	return p.isPublishedAt(now) && p.Visibility == VisibilityPublic
-}
-
-func (p PostEntry) IsTagVisible(now time.Time) bool {
-	if !p.isPublishedAt(now) {
-		return false
-	}
-	return p.Visibility == VisibilityPublic || p.Visibility == VisibilityUnlisted
-}
-
-func (p PostEntry) LatestRevision() *Revision {
-	if len(p.Revisions) == 0 {
-		return nil
-	}
-
-	latest := p.Revisions[0]
-	for i := 1; i < len(p.Revisions); i++ {
-		if p.Revisions[i].RevisedAt.After(latest.RevisedAt) {
-			latest = p.Revisions[i]
-		}
-	}
-
-	return &latest
-}
-
-func (p PostEntry) isPublishedAt(now time.Time) bool {
-	if p.PublishAt == nil {
-		return true
-	}
-	return !p.PublishAt.After(now)
-}
+type Revision = contentsposts.Revision
+type TagDefinition = contentstags.Definition
+type PostTag = contentsposts.Tag
+type TagFeed = contentsposts.TagFeed
+type PostEntry = contentsposts.Entry
 
 type Content struct {
 	// 親コンテンツへの参照。ルートコンテンツの場合は nil になる
@@ -139,7 +65,7 @@ type Content struct {
 	serveFS  http.Handler
 	children []*Content
 
-	siteVariables  map[string]any
+	siteContext    SiteContext
 	siteTemplateFS fs.FS
 	siteTemplate   string
 	logger         *logging.Logger
@@ -333,19 +259,14 @@ func (c *Content) customRoutingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Content) tryServeTagsPage(w http.ResponseWriter, r *http.Request, relPath string) (bool, error) {
-	if relPath != "tags" && !strings.HasPrefix(relPath, "tags/") {
+	handled, tagKey, invalid := contentstags.ParseRoute(relPath)
+	if !handled {
 		return false, nil
 	}
-
-	tagKey := strings.TrimPrefix(relPath, "tags/")
-	if relPath == "tags" || tagKey == "" {
-		return true, c.renderTagsPage(w, r, "")
-	}
-	if strings.Contains(tagKey, "/") {
+	if invalid {
 		http.NotFound(w, r)
 		return true, nil
 	}
-
 	return true, c.renderTagsPage(w, r, tagKey)
 }
 
@@ -416,19 +337,9 @@ func (c *Content) resolveSiteTemplate(resolvedPath string) (fs.FS, string, error
 		return nil, "", nil
 	}
 
-	ext := path.Ext(resolvedPath)
-	if ext == "" {
+	candidates := contentsrendering.ResolveSiteTemplateCandidates(c.siteTemplate, resolvedPath)
+	if len(candidates) == 0 {
 		return nil, "", nil
-	}
-
-	candidates := make([]string, 0, 2)
-	if c.siteTemplate != "" {
-		candidates = append(candidates, c.siteTemplate)
-	} else {
-		candidates = append(candidates, "site-template"+ext)
-		if ext != ".html" {
-			candidates = append(candidates, "site-template.html")
-		}
 	}
 
 	for _, templateName := range candidates {
@@ -456,10 +367,7 @@ func (c *Content) resolveSiteTemplate(resolvedPath string) (fs.FS, string, error
 }
 
 func (c *Content) resolveTemplate(resolvedPath string) (fs.FS, string, error) {
-	templateName := strings.TrimSpace(c.config.ContentTemplate)
-	if templateName == "" {
-		templateName = "template.html"
-	}
+	templateName := contentsrendering.ResolveContentTemplateName(c.config.ContentTemplate)
 	return c.resolveNamedTemplate(templateName)
 }
 
@@ -597,37 +505,10 @@ func (c *Content) loadTagDefinitions() (map[string]TagDefinition, error) {
 		if key == "tags" {
 			return nil, fmt.Errorf("reserved tag key: %s", key)
 		}
-		definitions[key] = normalizeTagDefinition(key, definition)
+		definitions[key] = contentstags.NormalizeDefinition(definition)
 	}
 
 	return definitions, nil
-}
-
-func normalizeTagDefinition(key string, definition TagDefinition) TagDefinition {
-	defaultLang := strings.TrimSpace(definition.DefaultLang)
-	if defaultLang == "" {
-		defaultLang = "ja"
-	}
-	return TagDefinition{
-		DefaultLang: defaultLang,
-		Label:       normalizeLocalizedMap(definition.Label),
-		About:       normalizeLocalizedMap(definition.About),
-	}
-}
-
-func normalizeLocalizedMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return map[string]string{}
-	}
-	dst := make(map[string]string, len(src))
-	for key, value := range src {
-		trimmedKey := strings.TrimSpace(strings.ToLower(key))
-		if trimmedKey == "" {
-			continue
-		}
-		dst[trimmedKey] = strings.TrimSpace(value)
-	}
-	return dst
 }
 
 func (c *Content) validatePostsReservedNames() error {
@@ -642,11 +523,25 @@ func (c *Content) validatePostsReservedNames() error {
 	return nil
 }
 
-func (c *Content) SetSiteVariables(siteVariables map[string]any) {
-	c.siteVariables = siteVariables
+func (c *Content) SetSiteContext(siteContext SiteContext) {
+	c.siteContext = siteContext
 	for _, child := range c.children {
-		child.SetSiteVariables(siteVariables)
+		child.SetSiteContext(siteContext)
 	}
+}
+
+func (c *Content) SetSiteVariables(siteVariables map[string]any) {
+	siteContext := SiteContext{}
+	if title, ok := siteVariables["title"].(string); ok {
+		siteContext.Title = title
+	}
+	if variables, ok := siteVariables["variables"].(map[string]any); ok {
+		siteContext.Variables = variables
+	}
+	if indexes, ok := siteVariables["indexes"].([]map[string]any); ok {
+		siteContext.Indexes = indexes
+	}
+	c.SetSiteContext(siteContext)
 }
 
 func (c *Content) SetSiteTemplateFS(siteTemplateFS fs.FS) {
@@ -668,7 +563,7 @@ func (c *Content) SetPostsContext(location *time.Location, siteLatest int) {
 		location = time.UTC
 	}
 	c.timezone = location
-	c.siteLatest = normalizeLatest(siteLatest)
+	c.siteLatest = contentsposts.NormalizeLatest(siteLatest, defaultLatestPosts)
 	for _, child := range c.children {
 		child.SetPostsContext(location, siteLatest)
 	}
@@ -679,9 +574,9 @@ func (c *Content) BuildSitePosts(now time.Time, siteLatest int) map[string]any {
 	tagPosts := c.collectSubtreePosts(now, PostEntry.IsTagVisible)
 	return map[string]any{
 		"all":    listPosts,
-		"latest": limitPosts(listPosts, normalizeLatest(siteLatest)),
-		"tags":   buildTagList(tagPosts),
-		"byTag":  buildTagMap(tagPosts),
+		"latest": contentsposts.Limit(listPosts, contentsposts.NormalizeLatest(siteLatest, defaultLatestPosts)),
+		"tags":   contentsposts.BuildTagList(tagPosts),
+		"byTag":  contentsposts.BuildTagMap(tagPosts),
 	}
 }
 
@@ -693,20 +588,16 @@ func (c *Content) logError(msg string, err error, attrs ...slog.Attr) {
 }
 
 func (c *Content) requestSiteVariables(r *http.Request) map[string]any {
-	if c.siteVariables == nil {
+	if c.siteContext.Title == "" && c.siteContext.Variables == nil && c.siteContext.Indexes == nil {
 		return nil
 	}
 
-	localized := make(map[string]any, len(c.siteVariables)+1)
-	maps.Copy(localized, c.siteVariables)
+	var posts map[string]any
 	if c.rootPath != nil {
-		localized["posts"] = c.rootPath.BuildSitePosts(c.now(), c.siteLatest)
+		posts = c.rootPath.BuildSitePosts(c.now(), c.siteLatest)
 	}
-
 	lang := strings.TrimSpace(r.URL.Query().Get("lang"))
-	localized["currentLocale"] = lang
-
-	return localized
+	return c.siteContext.VariablesMapWithLocale(posts, lang)
 }
 
 func (c *Content) requestContentsPosts() map[string]any {
@@ -718,9 +609,9 @@ func (c *Content) buildPostsVariables(now time.Time) map[string]any {
 	tagPosts := c.collectSubtreePosts(now, PostEntry.IsTagVisible)
 	return map[string]any{
 		"all":    listPosts,
-		"latest": limitPosts(listPosts, c.effectiveLatest()),
-		"tags":   buildTagList(tagPosts),
-		"byTag":  buildTagMap(tagPosts),
+		"latest": contentsposts.Limit(listPosts, c.effectiveLatest()),
+		"tags":   contentsposts.BuildTagList(tagPosts),
+		"byTag":  contentsposts.BuildTagMap(tagPosts),
 	}
 }
 
@@ -815,7 +706,7 @@ func (c *Content) postEntryFromMeta(metaData map[string]any, resolvedPath string
 		return PostEntry{}, false, nil
 	}
 
-	postedAt, ok := parseMetaTime(metaData["postedAt"], c.timezone)
+	postedAt, ok := contentsposts.ParseMetaTime(metaData["postedAt"], c.timezone)
 	if !ok {
 		return PostEntry{}, false, nil
 	}
@@ -824,16 +715,16 @@ func (c *Content) postEntryFromMeta(metaData map[string]any, resolvedPath string
 		URL:        buildPostURL(c.Path(), resolvedPath),
 		Title:      title,
 		PostedAt:   postedAt,
-		Visibility: parseVisibility(metaData["visibility"]),
+		Visibility: contentsposts.ParseVisibility(metaData["visibility"]),
 		Summary:    strings.TrimSpace(fmt.Sprint(metaData["summary"])),
-		Tags:       c.resolvePostTags(parseTagKeys(metaData["tags"])),
-		Revisions:  parseRevisions(metaData["revisions"], c.timezone),
+		Tags:       c.resolvePostTags(contentsposts.ParseTagKeys(metaData["tags"])),
+		Revisions:  contentsposts.ParseRevisions(metaData["revisions"], c.timezone),
 	}
 	if entry.Summary == "<nil>" {
 		entry.Summary = ""
 	}
 
-	if publishAt, ok := parseMetaTime(metaData["publishAt"], c.timezone); ok {
+	if publishAt, ok := contentsposts.ParseMetaTime(metaData["publishAt"], c.timezone); ok {
 		entry.PublishAt = &publishAt
 	}
 
@@ -946,30 +837,11 @@ func (c *Content) resolvePostTags(tagKeys []string) []PostTag {
 		resolved = append(resolved, PostTag{
 			Key:   key,
 			URL:   normalizeIndexURL(path.Join(c.Path(), "tags", key)),
-			Label: buildLocalizedPublicValue(definition.DefaultLang, definition.Label, key),
-			About: buildLocalizedPublicValue(definition.DefaultLang, definition.About, ""),
+			Label: contentstags.BuildLocalizedPublicValue(definition.DefaultLang, definition.Label, key),
+			About: contentstags.BuildLocalizedPublicValue(definition.DefaultLang, definition.About, ""),
 		})
 	}
 	return resolved
-}
-
-func buildLocalizedPublicValue(defaultLang string, values map[string]string, fallback string) map[string]string {
-	lang := strings.TrimSpace(strings.ToLower(defaultLang))
-	if lang == "" {
-		lang = "ja"
-	}
-	defaultValue := strings.TrimSpace(values[lang])
-	if defaultValue == "" {
-		defaultValue = strings.TrimSpace(values["ja"])
-	}
-	if defaultValue == "" {
-		defaultValue = fallback
-	}
-	jaValue := strings.TrimSpace(values["ja"])
-	if jaValue == "" {
-		jaValue = defaultValue
-	}
-	return map[string]string{"default": defaultValue, "ja": jaValue}
 }
 
 func buildTagList(posts []PostEntry) []TagFeed {
@@ -1073,9 +945,9 @@ func isIndexMarkdownPath(p string) bool {
 
 func (c *Content) effectiveLatest() int {
 	if c.config.Latest == nil {
-		return normalizeLatest(c.siteLatest)
+		return contentsposts.NormalizeLatest(c.siteLatest, defaultLatestPosts)
 	}
-	return normalizeLatest(*c.config.Latest)
+	return contentsposts.NormalizeLatest(*c.config.Latest, defaultLatestPosts)
 }
 
 func (c *Content) isPostsContent() bool {

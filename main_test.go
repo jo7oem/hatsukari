@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestMain_ParseRuntimeConfig(t *testing.T) {
+func TestRuntimeConfig_Parse(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -210,7 +210,7 @@ func TestMain_ParseRuntimeConfig(t *testing.T) {
 	}
 }
 
-func TestMain_RuntimeConfigExampleYAML(t *testing.T) {
+func TestRuntimeConfig_ExampleYAML(t *testing.T) {
 	t.Parallel()
 
 	raw := runtimeConfigExampleYAML()
@@ -233,7 +233,7 @@ func TestMain_RuntimeConfigExampleYAML(t *testing.T) {
 	}
 }
 
-func TestMain_ParseRuntimeConfig_Help(t *testing.T) {
+func TestRuntimeConfig_Help(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer

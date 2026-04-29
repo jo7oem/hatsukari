@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -80,7 +79,7 @@ type Site struct {
 	config   SiteConfig
 	fs       *os.Root
 	mux      *http.ServeMux
-	vars     map[string]any
+	context  contents.SiteContext
 	logger   *logging.Logger
 	access   *logging.Logger
 	metrics  *telemetry.SiteMetrics
@@ -161,15 +160,11 @@ func (s *Site) Config() SiteConfig {
 }
 
 func (s *Site) Variables() map[string]any {
-	vars := make(map[string]any, len(s.vars)+1)
-	maps.Copy(vars, s.vars)
-	if siteVariables, ok := vars["variables"].(map[string]any); ok {
-		vars["variables"] = maps.Clone(siteVariables)
-	}
+	var posts map[string]any
 	if s.root != nil {
-		vars["posts"] = s.root.BuildSitePosts(time.Now().In(s.location), s.latest)
+		posts = s.root.BuildSitePosts(time.Now().In(s.location), s.latest)
 	}
-	return vars
+	return s.context.VariablesMap(posts)
 }
 
 func (s *Site) Setup() error {
@@ -191,18 +186,18 @@ func (s *Site) Setup() error {
 	}
 
 	siteIndexes := buildSiteIndexes(root.CollectIndexSeeds())
-	siteConfigVariables := maps.Clone(s.config.Variables)
+	siteConfigVariables := cloneAnyMap(s.config.Variables)
 	if siteConfigVariables == nil {
 		siteConfigVariables = map[string]any{}
 	}
-	s.vars = map[string]any{
-		"title":     s.config.Title,
-		"variables": siteConfigVariables,
-		"indexes":   siteIndexes,
+	s.context = contents.SiteContext{
+		Title:     s.config.Title,
+		Variables: siteConfigVariables,
+		Indexes:   siteIndexes,
 	}
 	s.root = root
 	s.latest = siteLatest
-	root.SetSiteVariables(s.vars)
+	root.SetSiteContext(s.context)
 
 	siteTemplateFS, err := s.resolveSiteTemplateFS()
 	if err != nil {
@@ -236,4 +231,15 @@ func (s *Site) resolveSiteTemplateFS() (fs.FS, error) {
 	}
 
 	return templateFS, nil
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
 }

@@ -9,12 +9,18 @@
 対象コード:
 - `main.go`
 - `main_runtime_config.go`
+- `internal/bootstrap/bootstrap.go`
 - `internal/runtimeconfig/config.go`
 - `logging/logger.go`
 - `telemetry/telemetry.go`
 - `telemetry/site_metrics.go`
 - `store/hosting/renderer/renderer.go`
 - `store/hosting/contents/contents.go`
+- `store/hosting/contents/posts/posts.go`
+- `store/hosting/contents/tags/definition.go`
+- `store/hosting/contents/routing/path.go`
+- `store/hosting/contents/rendering/template.go`
+- `store/hosting/contents/site_context.go`
 - `store/hosting/site/site.go`
 - `store/hosting/site/page.go`（現状は空パッケージ）
 
@@ -34,7 +40,8 @@
 - 現実装（現状）
   - `main.go` は `siteDir` と `addr` を実行設定から読み込み、HTTP サーバを起動する。
 - 実装根拠
-  - `main.go` の `parseRuntimeConfig` と `http.ListenAndServe(conf.addr, siteMap)`。
+  - `main.go` の `parseRuntimeConfig` と `run`。
+  - 起動実体は `internal/bootstrap/bootstrap.go` の `Start`。
   - 実行設定解決の実体は `internal/runtimeconfig/config.go` の `ParseWithIO`。
 - テスト根拠
   - `site`/`contents` の `httptest.NewServer(...)` によりハンドラとして配信可能なことを検証。
@@ -54,7 +61,7 @@
   - `main_runtime_config.go` の `parseRuntimeConfig`, `runtimeConfigExampleYAML`（互換レイヤ）。
   - `internal/runtimeconfig/config.go` の `ParseWithIO`, `ExampleYAML`, `loadRuntimeConfigFile`（実体）。
 - テスト根拠
-  - `main_test.go` の `TestMain_ParseRuntimeConfig`, `TestMain_RuntimeConfigExampleYAML`。
+  - `main_test.go` の `TestRuntimeConfig_Parse`, `TestRuntimeConfig_ExampleYAML`。
 - 差分
   - なし。
 
@@ -233,6 +240,7 @@
   - `resolveNoExtRelPath` と `openFirstExistingCandidate` で同順序探索。
 - 実装根拠
   - `resolveContentPathByPriority`, `resolveNoExtRelPath`。
+  - `store/hosting/contents/routing/path.go` の `RequestURLToRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP`（priority_1..5）。
 - 差分
@@ -245,6 +253,7 @@
   - `isHiddenOrUnsafeRelPath` で 404。
 - 実装根拠
   - `customRoutingHandler`。
+  - `store/hosting/contents/routing/path.go` の `IsHiddenOrUnsafeRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP` の dotfile/dot dir ケース。
 - 差分
@@ -262,6 +271,7 @@
   - `contentTemplate` は `templatesDir` 直下のファイル名のみ許可し、`../`・絶対パス・ネストパスを拒否する。
 - 実装根拠
   - `resolveNamedTemplate`, `renderer.Render`。
+  - `store/hosting/contents/rendering/template.go` の `ResolveContentTemplateName`。
 - テスト根拠
   - `TestContent_ServeHTTP`（template_case）, `TestSite_ServeHTTP_SiteTemplatePipeline`。
 - 差分
@@ -288,6 +298,7 @@
   - 条件不一致は除外し、`PostEntry` を構築する。
 - 実装根拠
   - `collectOwnPosts`, `postEntryByResolvedPath`, `postEntryFromMeta`。
+  - `store/hosting/contents/posts/posts.go` の `ParseMetaTime`, `ParseTagKeys`, `ParseRevisions`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
 - 差分
@@ -300,7 +311,8 @@
   - `IsDirectVisible`, `IsListVisible`, `IsTagVisible` を用途別で適用。
   - 不正 visibility は `private` 扱い。
 - 実装根拠
-  - `PostEntry` の可視判定メソッドと `customRoutingHandler`。
+  - `store/hosting/contents/posts/posts.go` の `Entry` 可視判定メソッドと `ParseVisibility`。
+  - `customRoutingHandler`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
 - 差分
@@ -314,6 +326,7 @@
   - 既知タグのみ `URL` を付与、未知タグは `URL` 空。
 - 実装根拠
   - `loadTagDefinitions`, `resolvePostTags`, `buildTagMap`。
+  - `store/hosting/contents/tags/definition.go` の `NormalizeDefinition`, `BuildLocalizedPublicValue`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`。
 - 差分
@@ -329,6 +342,7 @@
   - `renderTagsPage` でも通常ページと同様にサイトテンプレート判定を行う。
 - 実装根拠
   - `tryServeTagsPage`, `renderTagsPage`。
+  - `store/hosting/contents/tags/definition.go` の `ParseRoute`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`, `TestSite_ServeHTTP_SiteTemplatePipeline`。
 - 差分
@@ -438,12 +452,13 @@
   - `variables` 未指定時は `site.variables` を空 map として公開する。
   - `variables` は `site.variables` 配下に隔離し、`site` 直下キーを上書きしない。
 - 現実装（現状）
-  - `Setup` で `title` / `variables` / `indexes` を `s.vars` に設定する。
-  - `Variables()` で `site.variables` を複製して返す。
-  - `requestSiteVariables` は `site` 直下へ `currentLocale` と `posts` を追加する。
+  - `Setup` で `title` / `variables` / `indexes` を `contents.SiteContext` に設定する。
+  - `Variables()` は `contents.SiteContext.VariablesMap` を使って返す。
+  - `requestSiteVariables` は `SiteContext` から `site` 変数を生成し、`currentLocale` と `posts` を追加する。
 - 実装根拠
   - `site.go` の `SiteConfig`, `Setup`, `Variables`。
-  - `contents.go` の `requestSiteVariables`。
+  - `contents/site_context.go` の `SiteContext`。
+  - `contents.go` の `SetSiteContext`, `requestSiteVariables`。
 - テスト根拠
   - `TestSite_Setup`, `TestSite_SiteVariables`, `TestRenderer_Render`。
 - 差分
