@@ -2,18 +2,24 @@ package renderer
 
 import (
 	"bytes"
+	"context"
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"time"
 
 	"github.com/jo7oem/hatsukari/logging"
+	"github.com/jo7oem/hatsukari/telemetry"
 	"github.com/yuin/goldmark"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var wakeUpTime = time.Now()
@@ -91,8 +97,25 @@ func NewRenderer(b []byte, opts ...Option) *Renderer {
 }
 
 func (r *Renderer) Render() ([]byte, error) {
+	return r.render(context.Background())
+}
+
+func (r *Renderer) render(ctx context.Context) ([]byte, error) {
+	spanCtx, span := telemetry.StartSpan(ctx, "renderer.Render",
+		trace.WithAttributes(
+			attribute.Int("renderer.source.bytes", len(r.source)),
+			attribute.String("renderer.content_template", r.contentTemplate),
+			attribute.String("renderer.site_template", r.siteTemplate),
+		),
+	)
+	defer span.End()
+
+	_, extractMetaSpan := telemetry.StartSpan(spanCtx, "renderer.extractMeta")
 	metaData, err := ExtractMeta(r.source)
+	extractMetaSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -115,41 +138,59 @@ func (r *Renderer) Render() ([]byte, error) {
 	}
 
 	markdownTemplateData := make(map[string]any, len(normalizedMeta)+len(pageData))
-	for key, value := range normalizedMeta {
-		markdownTemplateData[key] = value
-	}
+	maps.Copy(markdownTemplateData, normalizedMeta)
 	// 本文テンプレートではシステム変数を優先する
-	for key, value := range pageData {
-		markdownTemplateData[key] = value
-	}
+	maps.Copy(markdownTemplateData, pageData)
 
+	_, expandMarkdownSpan := telemetry.StartSpan(spanCtx, "renderer.expandMarkdownTemplate")
 	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, markdownTemplateData)
+	expandMarkdownSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	htmlBuffer := bytes.NewBuffer(nil)
-	context := parser.NewContext()
-	if err := markdown.Convert(expandedMarkdown, htmlBuffer, parser.WithContext(context)); err != nil {
+	parserContext := parser.NewContext()
+	_, markdownConvertSpan := telemetry.StartSpan(spanCtx, "renderer.markdownConvert")
+	if err := markdown.Convert(expandedMarkdown, htmlBuffer, parser.WithContext(parserContext)); err != nil {
+		markdownConvertSpan.RecordError(err)
+		markdownConvertSpan.End()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	markdownConvertSpan.End()
 
 	contentsData["body"] = template.HTML(htmlBuffer.String())
 	pageMeta, _ := pageData["page"].(map[string]any)
-	pageMeta["meta"] = meta.Get(context)
+	pageMeta["meta"] = meta.Get(parserContext)
 
 	out := htmlBuffer.Bytes()
 	if r.contentTemplateFS != nil && r.contentTemplate != "" {
+		_, contentTemplateSpan := telemetry.StartSpan(spanCtx, "renderer.applyContentTemplate",
+			trace.WithAttributes(attribute.String("renderer.content_template", r.contentTemplate)),
+		)
 		out, err = renderPageTemplate(r.contentTemplateFS, r.contentTemplate, pageData, out)
+		contentTemplateSpan.End()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 	}
 
 	contentsData["body"] = template.HTML(string(out))
 	if r.siteTemplateFS != nil && r.siteTemplate != "" {
+		_, siteTemplateSpan := telemetry.StartSpan(spanCtx, "renderer.applySiteTemplate",
+			trace.WithAttributes(attribute.String("renderer.site_template", r.siteTemplate)),
+		)
 		out, err = renderPageTemplate(r.siteTemplateFS, r.siteTemplate, pageData, out)
+		siteTemplateSpan.End()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 	}
@@ -158,8 +199,15 @@ func (r *Renderer) Render() ([]byte, error) {
 }
 
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	b, err := r.Render()
+	ctx, span := telemetry.StartSpan(req.Context(), "renderer.ServeHTTP",
+		trace.WithAttributes(attribute.String("http.path", req.URL.Path)),
+	)
+	defer span.End()
+
+	b, err := r.render(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		if r.logger != nil {
 			r.logger.Error("failed to render", err, slog.String("path", req.URL.Path))
 		}

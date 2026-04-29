@@ -1,86 +1,38 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	"io"
 	"log"
-	"log/slog"
-	"net/http"
 	"os"
-	"strings"
 
-	"github.com/jo7oem/hatsukari/logging"
-	"github.com/jo7oem/hatsukari/store/hosting/site"
+	"github.com/jo7oem/hatsukari/internal/bootstrap"
 )
 
-type runtimeConfig struct {
-	siteDir string
-	addr    string
-}
-
-func parseRuntimeConfig(args []string, getenv func(string) string) (runtimeConfig, error) {
-	fs := flag.NewFlagSet("hatsukari", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	defaultSiteDir := strings.TrimSpace(getenv("HATSUKARI_SITE_DIR"))
-	if defaultSiteDir == "" {
-		defaultSiteDir = "./sample"
-	}
-
-	defaultAddr := strings.TrimSpace(getenv("HATSUKARI_ADDR"))
-	if defaultAddr == "" {
-		port := strings.TrimSpace(getenv("PORT"))
-		if port != "" {
-			if strings.HasPrefix(port, ":") {
-				defaultAddr = port
-			} else {
-				defaultAddr = ":" + port
-			}
+func run(args []string, getenv func(string) string, out io.Writer, errOut io.Writer) error {
+	conf, err := parseRuntimeConfigWithIO(args, getenv, out, errOut)
+	if err != nil {
+		if err == errCommandHandled {
+			return nil
 		}
+		return err
 	}
-	if defaultAddr == "" {
-		defaultAddr = ":8080"
+	if conf.printConfigExample {
+		_, _ = fmt.Fprint(out, runtimeConfigExampleYAML())
+		return nil
 	}
-
-	var conf runtimeConfig
-	fs.StringVar(&conf.siteDir, "site", defaultSiteDir, "path to site directory")
-	fs.StringVar(&conf.addr, "addr", defaultAddr, "listen address")
-
-	if err := fs.Parse(args); err != nil {
-		return runtimeConfig{}, err
-	}
-
-	conf.siteDir = strings.TrimSpace(conf.siteDir)
-	conf.addr = strings.TrimSpace(conf.addr)
-	if conf.siteDir == "" {
-		return runtimeConfig{}, fmt.Errorf("siteDir must not be empty")
-	}
-	if conf.addr == "" {
-		return runtimeConfig{}, fmt.Errorf("addr must not be empty")
-	}
-
-	return conf, nil
+	return bootstrap.Start(context.Background(), out, bootstrap.RuntimeConfig{
+		SiteDir:      conf.siteDir,
+		Addr:         conf.addr,
+		OTELEnabled:  conf.otelEnabled,
+		OTELEndpoint: conf.otelEndpoint,
+		OTELInsecure: conf.otelInsecure,
+	}, bootstrap.Dependencies{})
 }
 
 func main() {
-	conf, err := parseRuntimeConfig(os.Args[1:], os.Getenv)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	logger := logging.NewLogger(slog.NewTextHandler(os.Stdout, nil), "hatsukari")
-
-	siteMap, err := site.OpenSiteDir(conf.siteDir, logger)
-	if err != nil {
-		logger.Error("failed to open site dir", err)
-		return
-	}
-	defer func() { _ = siteMap.Close() }()
-
-	logger.Info("server starting", slog.String("siteDir", conf.siteDir), slog.String("addr", conf.addr))
-	err = http.ListenAndServe(conf.addr, siteMap)
-	if err != nil {
+	if err := run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -2,9 +2,9 @@ package logging
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -143,16 +143,19 @@ func (l *Logger) log(ctx context.Context, level slog.Level, msg string, attrs ..
 			n = n - 2
 		}
 		frames := runtime.CallersFrames(pcs[:n])
-		s := strings.Builder{}
+		traces := make([]string, 0, n)
 		for {
 			frame, more := frames.Next()
-			s.WriteString(fmt.Sprintf("%s:%d\n", frame.File, frame.Line))
+			if strings.HasPrefix(frame.Function, "runtime.") {
+				break
+			}
+			traces = append(traces, frame.File+":"+strconv.Itoa(frame.Line))
 			if !more {
 				break
 			}
 		}
 
-		r.AddAttrs(slog.String("stacktrace", s.String()))
+		r.AddAttrs(slog.Any("stacktrace", traces))
 	}
 
 	_ = l.Handler().Handle(ctx, r)

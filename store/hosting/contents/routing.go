@@ -3,53 +3,16 @@ package contents
 import (
 	"path"
 	"strings"
+
+	contentsrouting "github.com/jo7oem/hatsukari/store/hosting/contents/routing"
 )
 
 func requestURLToRelPath(mountPath, urlPath string) (string, bool) {
-	cleanMount := path.Clean("/" + strings.TrimPrefix(mountPath, "/"))
-	if cleanMount != "/" && strings.HasSuffix(mountPath, "/") {
-		cleanMount += "/"
-	}
-
-	cleanURL := path.Clean("/" + strings.TrimPrefix(urlPath, "/"))
-
-	if cleanMount == "/" {
-		if cleanURL == "/" {
-			return "index", true
-		}
-		return strings.TrimPrefix(cleanURL, "/"), true
-	}
-
-	if cleanURL == strings.TrimSuffix(cleanMount, "/") {
-		return "index", true
-	}
-	if !strings.HasPrefix(cleanURL, cleanMount) {
-		return "", false
-	}
-
-	rel := strings.TrimPrefix(cleanURL, cleanMount)
-	if rel == "" {
-		return "index", true
-	}
-	return rel, true
+	return contentsrouting.RequestURLToRelPath(mountPath, urlPath)
 }
 
 func isHiddenOrUnsafeRelPath(relPath string) bool {
-	if relPath == "" || relPath == "." {
-		return true
-	}
-	if relPath == ".." || strings.HasPrefix(relPath, "../") {
-		return true
-	}
-	for seg := range strings.SplitSeq(relPath, "/") {
-		if seg == "" {
-			continue
-		}
-		if seg[0] == '.' {
-			return true
-		}
-	}
-	return false
+	return contentsrouting.IsHiddenOrUnsafeRelPath(relPath)
 }
 
 func (c *Content) resolveContentPathByPriority(relPath string) (string, bool) {

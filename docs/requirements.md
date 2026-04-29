@@ -8,9 +8,19 @@
 ## 2. スコープ
 対象コード:
 - `main.go`
+- `main_runtime_config.go`
+- `internal/bootstrap/bootstrap.go`
+- `internal/runtimeconfig/config.go`
 - `logging/logger.go`
+- `telemetry/telemetry.go`
+- `telemetry/site_metrics.go`
 - `store/hosting/renderer/renderer.go`
 - `store/hosting/contents/contents.go`
+- `store/hosting/contents/posts/posts.go`
+- `store/hosting/contents/tags/definition.go`
+- `store/hosting/contents/routing/path.go`
+- `store/hosting/contents/rendering/template.go`
+- `store/hosting/contents/site_context.go`
 - `store/hosting/site/site.go`
 - `store/hosting/site/page.go`（現状は空パッケージ）
 
@@ -28,13 +38,32 @@
 - 仕様（期待）
   - サイト設定と Content ツリーを読み込み、HTTP リクエストに応答する。
 - 現実装（現状）
-  - `main.go` は `./sample` を固定で読み込み、`:8080` で起動する。
+  - `main.go` は `siteDir` と `addr` を実行設定から読み込み、HTTP サーバを起動する。
 - 実装根拠
-  - `main.go` の `site.OpenSiteDir("./sample", logger)` と `http.ListenAndServe(":8080", siteMap)`。
+  - `main.go` の `parseRuntimeConfig` と `run`。
+  - 起動実体は `internal/bootstrap/bootstrap.go` の `Start`。
+  - 実行設定解決の実体は `internal/runtimeconfig/config.go` の `ParseWithIO`。
 - テスト根拠
   - `site`/`contents` の `httptest.NewServer(...)` によりハンドラとして配信可能なことを検証。
 - 差分
-  - 期待される CLI 引数や環境変数での切替は未実装。
+  - なし。
+
+### RQ-003 実行設定を環境変数・設定ファイル・CLI で解決できること
+- 仕様（期待）
+  - `環境変数 < 設定ファイル < CLI` の優先順位で実行設定を決定する。
+  - 設定ファイル形式は YAML とする。
+  - 設定ファイル例を標準出力へ出力する機能を提供する。
+- 現実装（現状）
+  - `-config` / `CONFIG_PATH` で YAML 実行設定を読み込む。
+  - `-print-config-example` で実行設定例 YAML を出力して終了する。
+  - `siteDir`, `addr`, `telemetry.enabled`, `telemetry.exporterEndpoint`, `telemetry.insecure` を解決する。
+- 実装根拠
+  - `main_runtime_config.go` の `parseRuntimeConfig`, `runtimeConfigExampleYAML`（互換レイヤ）。
+  - `internal/runtimeconfig/config.go` の `ParseWithIO`, `ExampleYAML`, `loadRuntimeConfigFile`（実体）。
+- テスト根拠
+  - `main_test.go` の `TestRuntimeConfig_Parse`, `TestRuntimeConfig_ExampleYAML`。
+- 差分
+  - なし。
 
 ### RQ-002 サイト設定ファイルを読み込めること
 - 仕様（期待）
@@ -88,6 +117,49 @@
   - 直接テストなし。
 - 差分
   - 期待に対して自動検証が不足。
+
+### RQ-104 OpenTelemetry トレースを collector 経由で収集できること
+- 仕様（期待）
+  - アプリは OTLP 送信先を直接バックエンドへ向けず、`otel-collector` 経由で送信する。
+  - collector はトレースを Jaeger と Tempo へ並列転送できる。
+  - 開発時の一次確認 UI は Jaeger を優先する。
+  - tracer は context 注入で扱い、グローバル tracer へ直接依存しない。
+  - exporter 初期化は指数バックオフで再試行し、バックオフ上限は設けない。
+  - 再試行回数とバックオフ基準値は `logging` パッケージ内 `var` で管理する。
+  - これら設定値の変更は起動時の初期化順序規約で 1 回のみ行う。
+  - 開発用途として OTel 送信を明示的に無効化して起動できる。
+- 現実装（現状）
+  - `telemetry/telemetry.go` で OTLP exporter と tracer provider を初期化し、context 注入 API を提供する。
+  - `main.go` は `otelEnabled=false` の場合 `telemetry.Init` を呼ばない。
+  - `compose.yaml` は `otel-collector` を経由して Jaeger/Tempo を起動する。
+- 実装根拠
+  - `telemetry/telemetry.go` の `Init`, `InjectTracer`, `TracerFromContext`, `StartSpan`。
+  - `otel/collector-config.yaml` の traces pipeline。
+  - `compose.yaml` の `app -> otel-collector` 依存。
+- テスト根拠
+  - （未整備）
+- 差分
+  - collector 経由での収集確認は手動確認手順に依存する。
+
+### RQ-105 OpenTelemetry メトリクスを collector 経由で収集できること
+- 仕様（期待）
+  - `hatsukari_runtime_goroutines` と `hatsukari_runtime_heap_alloc_bytes` を収集できる。
+  - `hatsukari_http_requests_total` を `http_method` と `http_status_code` の属性付きで収集できる。
+  - collector は Prometheus exporter でメトリクスを公開できる。
+  - Grafana は Prometheus datasource 経由で上記メトリクスを可視化できる。
+- 現実装（現状）
+  - `site.ServeHTTP` でアクセスカウンタを加算し、runtime メトリクスを observable gauge で公開する。
+  - `otel/collector-config.yaml` の metrics pipeline が Prometheus exporter（`:9464`）へ出力する。
+  - `compose.yaml` で `prometheus` と `grafana` を起動し、Grafana datasource を provision する。
+- 実装根拠
+  - `store/hosting/site/site.go` の `ServeHTTP` と `telemetry.InitSiteMetrics` 呼び出し。
+  - `telemetry/site_metrics.go` の `NewSiteMetrics`, `RecordHTTPRequest`。
+  - `telemetry/telemetry.go` の `newMeterProvider`。
+  - `otel/prometheus/prometheus.yml`, `otel/grafana/provisioning/datasources/prometheus.yaml`。
+- テスト根拠
+  - （未整備）
+- 差分
+  - collector/Prometheus/Grafana を含む E2E 自動検証は未導入。
 
 ---
 
@@ -168,8 +240,10 @@
   - `resolveNoExtRelPath` と `openFirstExistingCandidate` で同順序探索。
 - 実装根拠
   - `resolveContentPathByPriority`, `resolveNoExtRelPath`。
+  - `store/hosting/contents/routing/path.go` の `RequestURLToRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP`（priority_1..5）。
+  - `store/hosting/contents/routing/path_test.go` の `TestPath_RequestURLToRelPath`。
 - 差分
   - なし。
 
@@ -180,8 +254,10 @@
   - `isHiddenOrUnsafeRelPath` で 404。
 - 実装根拠
   - `customRoutingHandler`。
+  - `store/hosting/contents/routing/path.go` の `IsHiddenOrUnsafeRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP` の dotfile/dot dir ケース。
+  - `store/hosting/contents/routing/path_test.go` の `TestPath_IsHiddenOrUnsafeRelPath`。
 - 差分
   - なし。
 
@@ -197,6 +273,7 @@
   - `contentTemplate` は `templatesDir` 直下のファイル名のみ許可し、`../`・絶対パス・ネストパスを拒否する。
 - 実装根拠
   - `resolveNamedTemplate`, `renderer.Render`。
+  - `store/hosting/contents/rendering/template.go` の `ResolveContentTemplateName`。
 - テスト根拠
   - `TestContent_ServeHTTP`（template_case）, `TestSite_ServeHTTP_SiteTemplatePipeline`。
 - 差分
@@ -223,8 +300,10 @@
   - 条件不一致は除外し、`PostEntry` を構築する。
 - 実装根拠
   - `collectOwnPosts`, `postEntryByResolvedPath`, `postEntryFromMeta`。
+  - `store/hosting/contents/posts/posts.go` の `ParseMetaTime`, `ParseTagKeys`, `ParseRevisions`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
+  - `store/hosting/contents/posts/posts_test.go` の `TestPosts_ParseMetaTime`。
 - 差分
   - なし。
 
@@ -235,9 +314,11 @@
   - `IsDirectVisible`, `IsListVisible`, `IsTagVisible` を用途別で適用。
   - 不正 visibility は `private` 扱い。
 - 実装根拠
-  - `PostEntry` の可視判定メソッドと `customRoutingHandler`。
+  - `store/hosting/contents/posts/posts.go` の `Entry` 可視判定メソッドと `ParseVisibility`。
+  - `customRoutingHandler`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
+  - `store/hosting/contents/posts/posts_test.go` の `TestEntry_IsDirectVisible`, `TestPosts_ParseVisibility`。
 - 差分
   - なし。
 
@@ -249,8 +330,10 @@
   - 既知タグのみ `URL` を付与、未知タグは `URL` 空。
 - 実装根拠
   - `loadTagDefinitions`, `resolvePostTags`, `buildTagMap`。
+  - `store/hosting/contents/tags/definition.go` の `NormalizeDefinition`, `BuildLocalizedPublicValue`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`。
+  - `store/hosting/contents/tags/definition_test.go` の `TestDefinition_NormalizeDefinition`, `TestDefinition_BuildLocalizedPublicValue`。
 - 差分
   - なし。
 
@@ -264,8 +347,10 @@
   - `renderTagsPage` でも通常ページと同様にサイトテンプレート判定を行う。
 - 実装根拠
   - `tryServeTagsPage`, `renderTagsPage`。
+  - `store/hosting/contents/tags/definition.go` の `ParseRoute`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`, `TestSite_ServeHTTP_SiteTemplatePipeline`。
+  - `store/hosting/contents/tags/definition_test.go` の `TestDefinition_ParseRoute`。
 - 差分
   - `tags.md` 欠落時 500 の直接テストは未整備。
 
@@ -373,14 +458,16 @@
   - `variables` 未指定時は `site.variables` を空 map として公開する。
   - `variables` は `site.variables` 配下に隔離し、`site` 直下キーを上書きしない。
 - 現実装（現状）
-  - `Setup` で `title` / `variables` / `indexes` を `s.vars` に設定する。
-  - `Variables()` で `site.variables` を複製して返す。
-  - `requestSiteVariables` は `site` 直下へ `currentLocale` と `posts` を追加する。
+  - `Setup` で `title` / `variables` / `indexes` を `contents.SiteContext` に設定する。
+  - `Variables()` は `contents.SiteContext.VariablesMap` を使って返す。
+  - `requestSiteVariables` は `SiteContext` から `site` 変数を生成し、`currentLocale` と `posts` を追加する。
 - 実装根拠
   - `site.go` の `SiteConfig`, `Setup`, `Variables`。
-  - `contents.go` の `requestSiteVariables`。
+  - `contents/site_context.go` の `SiteContext`。
+  - `contents.go` の `SetSiteContext`, `requestSiteVariables`。
 - テスト根拠
   - `TestSite_Setup`, `TestSite_SiteVariables`, `TestRenderer_Render`。
+  - `store/hosting/contents/site_context_test.go` の `TestSiteContext_VariablesMap`, `TestSiteContext_VariablesMap_CloneSafety`。
 - 差分
   - なし。
 

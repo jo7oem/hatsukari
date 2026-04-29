@@ -6,7 +6,8 @@ hatsukari は、ディレクトリ構成と YAML 設定に基づいて Markdown/
 - `site` がサイト設定とルーティング全体を管理
 - `contents` が Content ツリー（子 Content を含む）を解決
 - `renderer` が Front Matter 付き Markdown を HTML 化しテンプレート適用
-- `logging` が `slog` ベースの薄いラッパーを提供
+- `logging` が `slog` ベースのロガーを提供
+- `telemetry` が OpenTelemetry（trace/metrics）の初期化と計測を提供
 
 ## API 利用時の注意
 - `site.OpenSiteDir(path, logger)` は `logger` に `nil` を許可しません。
@@ -36,11 +37,30 @@ go run ./main.go
 CLI と環境変数で起動先を切り替えられます。
 
 ```bash
-go run ./main.go -site ./sample -addr :8080
+go run ./main.go --site ./sample --addr :8080
 ```
 
 - 環境変数: `HATSUKARI_SITE_DIR`, `HATSUKARI_ADDR`
 - `PORT` も `HATSUKARI_ADDR` 未指定時のフォールバックとして利用可能
+- 実行設定の優先順位: `環境変数 < 設定ファイル < CLI`
+
+利用可能な主なフラグ:
+
+- `--config <path>`: 実行設定 YAML の読み込み
+- `--site <path>`: サイトディレクトリ
+- `--addr <addr>`: リッスンアドレス
+- `--otel-enabled <true|false>`: OTel 送信の有効/無効
+- `--otel-endpoint <host:port>`: OTLP エンドポイント
+- `--otel-insecure <true|false>`: OTLP insecure の有効/無効
+- `--print-config-example`: 設定ファイル例を標準出力へ出して終了
+- `--help`: 日本語の概要と実行例を表示
+
+環境変数:
+
+- `CONFIG_PATH`
+- `HATSUKARI_OTEL_ENABLED`
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_INSECURE`
 
 ## 設定ファイル
 - サイト設定: `.site.yaml`（優先）または `.site.yml`
@@ -75,10 +95,49 @@ contentTemplate: template.md
 
 主要キーの詳細仕様は `docs/requirements.md` を参照してください。
 
+実行設定ファイル（`--config` / `CONFIG_PATH`）の例:
+
+```yaml
+siteDir: ./sample
+addr: :8080
+
+telemetry:
+  enabled: true
+  exporterEndpoint: otel-collector:4317
+  insecure: true
+```
+
+設定例を出力するだけの場合:
+
+```bash
+go run ./main.go --print-config-example
+```
+
 ## テスト
 ```bash
 go test ./... -count=1
 ```
+
+## OpenTelemetry 開発観測
+- `app` は OTLP を `OTEL_EXPORTER_OTLP_ENDPOINT` に送信します。
+- 開発用 `compose` では `otel-collector` 経由で Jaeger と Tempo の両方へ転送します。
+- 一次確認は Jaeger UI（`http://127.0.0.1:16686`）を想定しています。
+
+```bash
+docker compose -f compose.yaml up -d
+docker compose -f compose.yaml logs --tail=200 otel-collector
+```
+
+- Jaeger UI: `http://127.0.0.1:16686`
+- Grafana UI: `http://127.0.0.1:3000`
+- Prometheus UI: `http://127.0.0.1:9090`
+
+Grafana は anonymous login 有効のため、起動直後から Tempo datasource でトレース確認できます。
+また Prometheus datasource と `hatsukari Metrics` ダッシュボードが自動で読み込まれ、以下のメトリクスを可視化できます。
+
+- `hatsukari_http_requests_total`（`http_status_code` ごとのアクセスカウンタ）
+- `hatsukari_runtime_goroutines`（goroutine 数）
+- `hatsukari_runtime_heap_alloc_bytes`（ヒープ使用量）
 
 ## ドキュメント
 - 要件仕様（正本）: `docs/requirements.md`

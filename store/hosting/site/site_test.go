@@ -184,7 +184,6 @@ func TestSite_SiteVariables(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -367,7 +366,6 @@ func TestSite_OpenDir_InvalidSiteTemplateEntryPoint(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
