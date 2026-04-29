@@ -41,6 +41,24 @@ go run ./main.go -site ./sample -addr :8080
 
 - 環境変数: `HATSUKARI_SITE_DIR`, `HATSUKARI_ADDR`
 - `PORT` も `HATSUKARI_ADDR` 未指定時のフォールバックとして利用可能
+- 実行設定の優先順位: `環境変数 < 設定ファイル < CLI`
+
+利用可能な主なフラグ:
+
+- `-config <path>`: 実行設定 YAML の読み込み
+- `-site <path>`: サイトディレクトリ
+- `-addr <addr>`: リッスンアドレス
+- `-otel-enabled <true|false>`: OTel 送信の有効/無効
+- `-otel-endpoint <host:port>`: OTLP エンドポイント
+- `-otel-insecure <true|false>`: OTLP insecure の有効/無効
+- `-print-config-example`: 設定ファイル例を標準出力へ出して終了
+
+環境変数:
+
+- `CONFIG_PATH`
+- `HATSUKARI_OTEL_ENABLED`
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_INSECURE`
 
 ## 設定ファイル
 - サイト設定: `.site.yaml`（優先）または `.site.yml`
@@ -74,6 +92,24 @@ contentTemplate: template.md
 - `contentTemplate` は `templatesDir` 直下のファイル名のみ許可します（`../` やネストパスは不可）。
 
 主要キーの詳細仕様は `docs/requirements.md` を参照してください。
+
+実行設定ファイル（`-config` / `CONFIG_PATH`）の例:
+
+```yaml
+siteDir: ./sample
+addr: :8080
+
+telemetry:
+  enabled: true
+  exporterEndpoint: otel-collector:4317
+  insecure: true
+```
+
+設定例を出力するだけの場合:
+
+```bash
+go run ./main.go -print-config-example
+```
 
 ## テスト
 ```bash

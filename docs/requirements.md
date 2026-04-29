@@ -28,13 +28,29 @@
 - 仕様（期待）
   - サイト設定と Content ツリーを読み込み、HTTP リクエストに応答する。
 - 現実装（現状）
-  - `main.go` は `./sample` を固定で読み込み、`:8080` で起動する。
+  - `main.go` は `siteDir` と `addr` を実行設定から読み込み、HTTP サーバを起動する。
 - 実装根拠
-  - `main.go` の `site.OpenSiteDir("./sample", logger)` と `http.ListenAndServe(":8080", siteMap)`。
+  - `main.go` の `parseRuntimeConfig` と `http.ListenAndServe(conf.addr, siteMap)`。
 - テスト根拠
   - `site`/`contents` の `httptest.NewServer(...)` によりハンドラとして配信可能なことを検証。
 - 差分
-  - 期待される CLI 引数や環境変数での切替は未実装。
+  - なし。
+
+### RQ-003 実行設定を環境変数・設定ファイル・CLI で解決できること
+- 仕様（期待）
+  - `環境変数 < 設定ファイル < CLI` の優先順位で実行設定を決定する。
+  - 設定ファイル形式は YAML とする。
+  - 設定ファイル例を標準出力へ出力する機能を提供する。
+- 現実装（現状）
+  - `-config` / `CONFIG_PATH` で YAML 実行設定を読み込む。
+  - `-print-config-example` で実行設定例 YAML を出力して終了する。
+  - `siteDir`, `addr`, `telemetry.enabled`, `telemetry.exporterEndpoint`, `telemetry.insecure` を解決する。
+- 実装根拠
+  - `main.go` の `parseRuntimeConfig`, `loadRuntimeConfigFile`, `runtimeConfigExampleYAML`。
+- テスト根拠
+  - `main_test.go` の `TestMain_ParseRuntimeConfig`, `TestMain_RuntimeConfigExampleYAML`。
+- 差分
+  - なし。
 
 ### RQ-002 サイト設定ファイルを読み込めること
 - 仕様（期待）
@@ -98,8 +114,10 @@
   - exporter 初期化は指数バックオフで再試行し、バックオフ上限は設けない。
   - 再試行回数とバックオフ基準値は `logging` パッケージ内 `var` で管理する。
   - これら設定値の変更は起動時の初期化順序規約で 1 回のみ行う。
+  - 開発用途として OTel 送信を明示的に無効化して起動できる。
 - 現実装（現状）
   - `logging/otel.go` で OTLP exporter と tracer provider を初期化し、context 注入 API を提供する。
+  - `main.go` は `otelEnabled=false` の場合 `InitTelemetry` を呼ばない。
   - `compose.yaml` は `otel-collector` を経由して Jaeger/Tempo を起動する。
 - 実装根拠
   - `logging/otel.go` の `InitTelemetry`, `InjectTracer`, `TracerFromContext`, `StartSpan`。
