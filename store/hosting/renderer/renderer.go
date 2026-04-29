@@ -17,6 +17,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -99,7 +100,7 @@ func (r *Renderer) Render() ([]byte, error) {
 }
 
 func (r *Renderer) render(ctx context.Context) ([]byte, error) {
-	_, span := logging.StartSpan(ctx, "renderer.Render",
+	spanCtx, span := logging.StartSpan(ctx, "renderer.Render",
 		trace.WithAttributes(
 			attribute.Int("renderer.source.bytes", len(r.source)),
 			attribute.String("renderer.content_template", r.contentTemplate),
@@ -108,11 +109,12 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 	)
 	defer span.End()
 
-	_, extractMetaSpan := logging.StartSpan(ctx, "renderer.extractMeta")
+	_, extractMetaSpan := logging.StartSpan(spanCtx, "renderer.extractMeta")
 	metaData, err := ExtractMeta(r.source)
 	extractMetaSpan.End()
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -139,51 +141,55 @@ func (r *Renderer) render(ctx context.Context) ([]byte, error) {
 	// 本文テンプレートではシステム変数を優先する
 	maps.Copy(markdownTemplateData, pageData)
 
-	_, expandMarkdownSpan := logging.StartSpan(ctx, "renderer.expandMarkdownTemplate")
+	_, expandMarkdownSpan := logging.StartSpan(spanCtx, "renderer.expandMarkdownTemplate")
 	expandedMarkdown, err := renderMarkdownWithMetaTemplate(r.source, markdownTemplateData)
 	expandMarkdownSpan.End()
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	htmlBuffer := bytes.NewBuffer(nil)
-	context := parser.NewContext()
-	_, markdownConvertSpan := logging.StartSpan(ctx, "renderer.markdownConvert")
-	if err := markdown.Convert(expandedMarkdown, htmlBuffer, parser.WithContext(context)); err != nil {
+	parserContext := parser.NewContext()
+	_, markdownConvertSpan := logging.StartSpan(spanCtx, "renderer.markdownConvert")
+	if err := markdown.Convert(expandedMarkdown, htmlBuffer, parser.WithContext(parserContext)); err != nil {
 		markdownConvertSpan.RecordError(err)
 		markdownConvertSpan.End()
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	markdownConvertSpan.End()
 
 	contentsData["body"] = template.HTML(htmlBuffer.String())
 	pageMeta, _ := pageData["page"].(map[string]any)
-	pageMeta["meta"] = meta.Get(context)
+	pageMeta["meta"] = meta.Get(parserContext)
 
 	out := htmlBuffer.Bytes()
 	if r.contentTemplateFS != nil && r.contentTemplate != "" {
-		_, contentTemplateSpan := logging.StartSpan(ctx, "renderer.applyContentTemplate",
+		_, contentTemplateSpan := logging.StartSpan(spanCtx, "renderer.applyContentTemplate",
 			trace.WithAttributes(attribute.String("renderer.content_template", r.contentTemplate)),
 		)
 		out, err = renderPageTemplate(r.contentTemplateFS, r.contentTemplate, pageData, out)
 		contentTemplateSpan.End()
 		if err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 	}
 
 	contentsData["body"] = template.HTML(string(out))
 	if r.siteTemplateFS != nil && r.siteTemplate != "" {
-		_, siteTemplateSpan := logging.StartSpan(ctx, "renderer.applySiteTemplate",
+		_, siteTemplateSpan := logging.StartSpan(spanCtx, "renderer.applySiteTemplate",
 			trace.WithAttributes(attribute.String("renderer.site_template", r.siteTemplate)),
 		)
 		out, err = renderPageTemplate(r.siteTemplateFS, r.siteTemplate, pageData, out)
 		siteTemplateSpan.End()
 		if err != nil {
 			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 	}
@@ -200,6 +206,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	b, err := r.render(ctx)
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		if r.logger != nil {
 			r.logger.Error("failed to render", err, slog.String("path", req.URL.Path))
 		}

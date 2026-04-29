@@ -349,13 +349,14 @@ func (c *Content) tryServeTagsPage(w http.ResponseWriter, r *http.Request, relPa
 }
 
 func (c *Content) renderTagsPage(w http.ResponseWriter, r *http.Request, tagKey string) error {
-	_, span := logging.StartSpan(r.Context(), "contents.renderTagsPage",
+	ctx, span := logging.StartSpan(r.Context(), "contents.renderTagsPage",
 		trace.WithAttributes(
 			attribute.String("contents.path", c.Path()),
 			attribute.String("contents.tag_key", tagKey),
 		),
 	)
 	defer span.End()
+	r = r.WithContext(ctx)
 
 	postsData := c.requestContentsPosts()
 	byTag, _ := postsData["byTag"].(map[string]TagFeed)

@@ -14,12 +14,12 @@ import (
 )
 
 type capturedJSONLog struct {
-	Time      string                 `json:"time"`
-	Level     string                 `json:"level"`
-	Msg       string                 `json:"msg"`
-	Namespace string                 `json:"namespace"`
-	Access    map[string]any         `json:"access"`
-	Attrs     map[string]interface{} `json:"-"`
+	Time      string         `json:"time"`
+	Level     string         `json:"level"`
+	Msg       string         `json:"msg"`
+	Namespace string         `json:"namespace"`
+	Access    map[string]any `json:"access"`
+	Attrs     map[string]any `json:"-"`
 }
 
 func newCapturedLogger(buf *bytes.Buffer) *logging.Logger {
@@ -96,7 +96,6 @@ func TestSite_ServeHTTP_AccessLog(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -171,7 +170,6 @@ func TestSite_remoteAddrHost(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := remoteAddrHost(tt.remoteAddr); got != tt.want {
