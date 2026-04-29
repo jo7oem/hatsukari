@@ -93,10 +93,7 @@ func StartSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) 
 }
 
 func newOTLPExporterWithRetry(ctx context.Context, endpoint string, insecure bool) (sdktrace.SpanExporter, error) {
-	attempts := telemetryInitMaxAttempts
-	if attempts < 1 {
-		attempts = 1
-	}
+	attempts := max(telemetryInitMaxAttempts, 1)
 	backoff := telemetryInitBackoffBase
 	if backoff <= 0 {
 		backoff = 200 * time.Millisecond
