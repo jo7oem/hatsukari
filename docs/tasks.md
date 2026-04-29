@@ -27,4 +27,5 @@
 - [x] `store/hosting/contents` を責務別サブパッケージへ再配置（routing/rendering/posts/tags）
 - [x] `site` と `contents` 間の `map[string]any` 境界を縮小する型導入
 - [x] 命名統一後のテスト名・ヘルパ名を実装語彙へ揃える
+- [x] `contents` サブパッケージ（posts/rendering/routing/tags）の単体テストを追加
 - [x] 要件仕様へ再配置後の実装根拠を追記

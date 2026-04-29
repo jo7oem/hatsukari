@@ -243,6 +243,7 @@
   - `store/hosting/contents/routing/path.go` の `RequestURLToRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP`（priority_1..5）。
+  - `store/hosting/contents/routing/path_test.go` の `TestPath_RequestURLToRelPath`。
 - 差分
   - なし。
 
@@ -256,6 +257,7 @@
   - `store/hosting/contents/routing/path.go` の `IsHiddenOrUnsafeRelPath`。
 - テスト根拠
   - `TestContent_ServeHTTP` の dotfile/dot dir ケース。
+  - `store/hosting/contents/routing/path_test.go` の `TestPath_IsHiddenOrUnsafeRelPath`。
 - 差分
   - なし。
 
@@ -301,6 +303,7 @@
   - `store/hosting/contents/posts/posts.go` の `ParseMetaTime`, `ParseTagKeys`, `ParseRevisions`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
+  - `store/hosting/contents/posts/posts_test.go` の `TestPosts_ParseMetaTime`。
 - 差分
   - なし。
 
@@ -315,6 +318,7 @@
   - `customRoutingHandler`。
 - テスト根拠
   - `TestSite_Posts`, `TestSite_PostTags`。
+  - `store/hosting/contents/posts/posts_test.go` の `TestEntry_IsDirectVisible`, `TestPosts_ParseVisibility`。
 - 差分
   - なし。
 
@@ -329,6 +333,7 @@
   - `store/hosting/contents/tags/definition.go` の `NormalizeDefinition`, `BuildLocalizedPublicValue`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`。
+  - `store/hosting/contents/tags/definition_test.go` の `TestDefinition_NormalizeDefinition`, `TestDefinition_BuildLocalizedPublicValue`。
 - 差分
   - なし。
 
@@ -345,6 +350,7 @@
   - `store/hosting/contents/tags/definition.go` の `ParseRoute`。
 - テスト根拠
   - `TestSite_PostTags`, `TestSite_PostTagsWithoutDefinitionFile`, `TestSite_ServeHTTP_SiteTemplatePipeline`。
+  - `store/hosting/contents/tags/definition_test.go` の `TestDefinition_ParseRoute`。
 - 差分
   - `tags.md` 欠落時 500 の直接テストは未整備。
 
@@ -461,6 +467,7 @@
   - `contents.go` の `SetSiteContext`, `requestSiteVariables`。
 - テスト根拠
   - `TestSite_Setup`, `TestSite_SiteVariables`, `TestRenderer_Render`。
+  - `store/hosting/contents/site_context_test.go` の `TestSiteContext_VariablesMap`, `TestSiteContext_VariablesMap_CloneSafety`。
 - 差分
   - なし。
 
